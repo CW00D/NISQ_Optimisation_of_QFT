@@ -1,0 +1,41 @@
+# Byte-compiled files
+*.pyc
+*.pyo
+__pycache__/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Virtual environment
+venv/
+env/
+*.env
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Experiment data and outputs
+experiments/data/
+experiments/analysis/results/
+
+# Build artifacts
+*.egg-info/
+build/
+dist/
+
+# Python testing
+coverage/
+*.coverage
+.cache/
+.tox/
+
+# IDE and editor settings
+.vscode/
+.idea/
+
+# GitHub Actions
+!.github/workflows/
