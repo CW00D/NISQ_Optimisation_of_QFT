@@ -2,7 +2,7 @@
 # -----------------------------------------------------
 from qiskit import QuantumCircuit
 import re
-import np
+import numpy as np
 
 
 # Main
@@ -10,10 +10,11 @@ import np
 def main():
     qubits = 3
     max_circuit_depth = 10
-    population = 3
+    population = 10
     iterations = 10
 
-    chromosomes = [[["w" for i in range(qubits)] for i in range(max_circuit_depth)] for i in range(population)]
+    possible_starting_gates = ["w", "w", "w", "w", "w", "x", "y", "z", "h"]
+    chromosomes = [[[possible_starting_gates[np.random.choice(len(possible_starting_gates))] for i in range(qubits)] for i in range(max_circuit_depth)] for i in range(population)]
     chromosomes[1][0][0] = "h"
 
     for i in range(iterations):
@@ -84,21 +85,21 @@ def get_circuits(circuit_chromosomes):
 # Fitness Function
 # -----------------------------------------------------
 def get_circuit_fitnesses(circuits):
-    fitnesses = [0 for i in range(len(circuits))]
+    fitnesses = [np.random.randint(0, 10) for i in range(len(circuits))]
 
-    for circuit in circuits:
-        print(circuit)
-
-        value_to_encode = 7
-
-        binary_basis_value = bin(value_to_encode)[2:].zfill(3)
-        starting_state = []
-        for i in binary_basis_value:
-            if i == "1":
-                starting_state.append('x')
-            else:
-                starting_state.append('w')
-        print(starting_state)
+    #for circuit in circuits:
+    #    print(circuit)
+    #
+    #    value_to_encode = 7
+    #
+    #    binary_basis_value = bin(value_to_encode)[2:].zfill(3)
+    #    starting_state = []
+    #    for i in binary_basis_value:
+    #        if i == "1":
+    #            starting_state.append('x')
+    #        else:
+    #            starting_state.append('w')
+    #    print(starting_state)
 
     return fitnesses
 
@@ -106,22 +107,49 @@ def get_circuit_fitnesses(circuits):
 # Genetic Operators
 # -----------------------------------------------------
 def apply_genetic_operators(chromosomes, fitnesses):
-    pass
+    # Sort chromosomes by fitness in descending order
+    sorted_indices = sorted(range(len(fitnesses)), key=lambda i: fitnesses[i], reverse=True)
+    top_indices = sorted_indices[:5]  # Top 5 indices
+    bottom_indices = sorted_indices[-5:]  # Bottom 5 indices
+
+    # Generate children through crossover
+    children = []
+    for i in range(len(bottom_indices)):
+        # Choose two parents randomly from the top 5
+        parent_1_index, parent_2_index = np.random.choice(top_indices, 2, replace=False)
+        child_1, child_2 = crossover(chromosomes[parent_1_index], chromosomes[parent_2_index])
+
+        # Mutate the children
+        children.append(mutate_chromosome(child_1))
+        if len(children) < len(bottom_indices):
+            children.append(mutate_chromosome(child_2))
+
+    # Replace bottom chromosomes with children
+    new_population = chromosomes.copy()
+    for i, idx in enumerate(bottom_indices):
+        new_population[idx] = children[i]
+
+    return new_population
+
+def crossover(parent_1, parent_2):
+    """Single-point crossover between two chromosomes."""
+    crossover_point = np.random.randint(1, len(parent_1) - 1)
+    child_1 = parent_1[:crossover_point] + parent_2[crossover_point:]
+    child_2 = parent_2[:crossover_point] + parent_1[crossover_point:]
+    return child_1, child_2
 
 def mutate_chromosome(chromosome, mutation_rate=0.1):
     """Mutates a single chromosome with a given mutation rate."""
+    child_1 = []
+    child_2 = []
+
+    return child_1, child_2
+
     for layer in chromosome:
         for i in range(len(layer)):
             if np.random.rand() < mutation_rate:
                 layer[i] = np.random.choice(["x", "h", "cx(0,1)", "w"])
     return chromosome
-
-def crossover(parent1, parent2):
-    """Single-point crossover between two chromosomes."""
-    crossover_point = np.random.randint(1, len(parent1) - 1)
-    child1 = parent1[:crossover_point] + parent2[crossover_point:]
-    child2 = parent2[:crossover_point] + parent1[crossover_point:]
-    return child1, child2
 
 def replace_population(chromosomes, child_chromosomes):
     return chromosomes
