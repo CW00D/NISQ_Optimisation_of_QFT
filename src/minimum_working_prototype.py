@@ -11,7 +11,7 @@ def main():
     qubits = 3
     max_circuit_depth = 10
     population = 10
-    iterations = 10
+    iterations = 1
 
     possible_starting_gates = ["w", "w", "w", "w", "w", "x", "y", "z", "h"]
     chromosomes = [[[possible_starting_gates[np.random.choice(len(possible_starting_gates))] for i in range(qubits)] for i in range(max_circuit_depth)] for i in range(population)]
@@ -21,8 +21,7 @@ def main():
         print("------------------POPULATION", str(i) + "------------------")
         circuits = get_circuits(chromosomes)
         fitnesses = get_circuit_fitnesses(circuits)
-        child_chromosomes = apply_genetic_operators(chromosomes, fitnesses)
-        chromosomes = replace_population(chromosomes, child_chromosomes)
+        chromosomes = apply_genetic_operators(chromosomes, fitnesses)
 
 
 # Representaion
@@ -113,21 +112,18 @@ def apply_genetic_operators(chromosomes, fitnesses):
     bottom_indices = sorted_indices[-5:]  # Bottom 5 indices
 
     # Generate children through crossover
-    children = []
+    child_chromosomes = []
     for i in range(len(bottom_indices)):
         # Choose two parents randomly from the top 5
         parent_1_index, parent_2_index = np.random.choice(top_indices, 2, replace=False)
         child_1, child_2 = crossover(chromosomes[parent_1_index], chromosomes[parent_2_index])
 
         # Mutate the children
-        children.append(mutate_chromosome(child_1))
-        if len(children) < len(bottom_indices):
-            children.append(mutate_chromosome(child_2))
+        child_chromosomes.append(mutate_chromosome(child_1))
+        if len(child_chromosomes) < len(bottom_indices):
+            child_chromosomes.append(mutate_chromosome(child_2))
 
-    # Replace bottom chromosomes with children
-    new_population = chromosomes.copy()
-    for i, idx in enumerate(bottom_indices):
-        new_population[idx] = children[i]
+    new_population = replace_population(chromosomes, child_chromosomes, bottom_indices)
 
     return new_population
 
@@ -140,19 +136,16 @@ def crossover(parent_1, parent_2):
 
 def mutate_chromosome(chromosome, mutation_rate=0.1):
     """Mutates a single chromosome with a given mutation rate."""
-    child_1 = []
-    child_2 = []
-
-    return child_1, child_2
-
     for layer in chromosome:
         for i in range(len(layer)):
             if np.random.rand() < mutation_rate:
-                layer[i] = np.random.choice(["x", "h", "cx(0,1)", "w"])
+                layer[i] = np.random.choice(["cx(0,1)", "cy(0,1)", "cz(0,1)"])
     return chromosome
 
-def replace_population(chromosomes, child_chromosomes):
-    return chromosomes
-
+def replace_population(chromosomes, child_chromosomes, bottom_indices):
+    """ Replace bottom chromosomes with children."""
+    new_population = chromosomes.copy()
+    for i, idx in enumerate(bottom_indices):
+        new_population[idx] = child_chromosomes[i]
 if __name__ == "__main__":
     main()
