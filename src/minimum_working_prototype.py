@@ -1,6 +1,6 @@
 # Imports
 # -----------------------------------------------------
-from qiskit import QuantumCircuit
+from qiskit import QuantumCircuit, transpile
 from qiskit_aer import AerSimulator
 from qiskit.circuit.library import QFT
 from qiskit.quantum_info import Statevector, state_fidelity
@@ -90,28 +90,38 @@ def get_circuits(circuit_chromosomes):
 # Fitness Function
 # -----------------------------------------------------
 def get_circuit_fitnesses(circuits, qubits):
-    """Evaluate fitness of circuits based on similarity to QFT output."""
+    """Evaluate fitness of circuits based on similarity to QFT output over multiple initial states."""
     fitnesses = []
-    qubits = circuits[0].num_qubits
     
-    # Define the target QFT state
+    # Define and transpile the target QFT circuit
     target_circuit = QuantumCircuit(qubits)
-    target_circuit.h(0)  # Optional: Prepare an initial state
     target_circuit.append(QFT(num_qubits=qubits), range(qubits))
-    target_state = Statevector.from_instruction(target_circuit)
+    target_circuit = transpile(target_circuit, basis_gates=['u', 'cx'])
+    target_circuit.save_statevector()
     
-    # Simulate each circuit
+    # Generate initial states (basis states |000>, |001>, ..., |111>)
+    initial_states = [Statevector.from_label(f"{i:0{qubits}b}") for i in range(2**qubits)]
+    
+    # Simulate the target circuit once for each initial state
     simulator = AerSimulator(method='statevector')
-
+    target_states = []
+    for state in initial_states:
+        result = simulator.run(target_circuit, initial_state=state).result()
+        target_states.append(result.get_statevector())
+    
+    # Evaluate each candidate circuit
     for circuit in circuits:
-        # Get the statevector of the circuit
-        result = simulator.run(circuit).result()
-        circuit_state = result.get_statevector(circuit)
+        total_fidelity = 0
+        for state, target_state in zip(initial_states, target_states):
+            result = simulator.run(circuit, initial_state=state).result()
+            circuit_state = result.get_statevector()
+            fidelity = state_fidelity(circuit_state, target_state)
+            total_fidelity += fidelity
         
-        # Compute fidelity with the target state
-        fidelity = state_fidelity(circuit_state, target_state)
-        fitnesses.append(fidelity)
-
+        # Average fidelity across all initial states
+        average_fidelity = total_fidelity / len(initial_states)
+        fitnesses.append(average_fidelity)
+    
     return fitnesses
 
 
