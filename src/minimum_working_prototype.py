@@ -11,14 +11,14 @@ def main():
     qubits = 3
     max_circuit_depth = 10
     population = 10
-    iterations = 1
+    iterations = 2
 
     possible_starting_gates = ["w", "w", "w", "w", "w", "x", "y", "z", "h"]
     chromosomes = [[[possible_starting_gates[np.random.choice(len(possible_starting_gates))] for i in range(qubits)] for i in range(max_circuit_depth)] for i in range(population)]
     chromosomes[1][0][0] = "h"
 
     for i in range(iterations):
-        print("------------------POPULATION", str(i) + "------------------")
+        print("\n\n------------------POPULATION", str(i) + "------------------\n")
         circuits = get_circuits(chromosomes)
         fitnesses = get_circuit_fitnesses(circuits)
         chromosomes = apply_genetic_operators(chromosomes, fitnesses)
@@ -30,7 +30,7 @@ def get_circuits(circuit_chromosomes):
     circuits = []
     
     for circuit_chromosome in circuit_chromosomes:
-        # Initialize circuit
+        # Initialise circuit
         circuit = QuantumCircuit(len(circuit_chromosome[0]))
 
         # Gate map for Qiskit Aer native gates with explanations
@@ -45,7 +45,7 @@ def get_circuits(circuit_chromosomes):
             "sdg": circuit.sdg,  # S-dagger (Inverse Phase) gate: R_z(-π/2)
             "t": circuit.t,  # T gate: R_z(π/4)
             "tdg": circuit.tdg,  # T-dagger gate: R_z(-π/4)
-            "u": circuit.u,  # Generalized single-qubit rotation: R_z(λ) R_y(θ) R_z(φ)
+            "u": circuit.u,  # Generalised single-qubit rotation: R_z(λ) R_y(θ) R_z(φ)
             "rx": circuit.rx,  # Rotation around the X axis: R_x(θ)
             "ry": circuit.ry,  # Rotation around the Y axis: R_y(θ)
             "rz": circuit.rz,  # Rotation around the Z axis: R_z(θ)
@@ -77,6 +77,7 @@ def get_circuits(circuit_chromosomes):
                     chromosome_qiskit_gate_map[gate_spec](qubit)
 
         circuits.append(circuit.copy())
+        print(circuit, "\n")
 
     return circuits
 
@@ -139,7 +140,7 @@ def mutate_chromosome(chromosome, mutation_rate=0.1):
     for layer in chromosome:
         for i in range(len(layer)):
             if np.random.rand() < mutation_rate:
-                layer[i] = np.random.choice(["cx(0,1)", "cy(0,1)", "cz(0,1)"])
+                layer[i] = np.random.choice(["tdg", "tdg", "tdg", "w"])
     return chromosome
 
 def replace_population(chromosomes, child_chromosomes, bottom_indices):
@@ -147,5 +148,8 @@ def replace_population(chromosomes, child_chromosomes, bottom_indices):
     new_population = chromosomes.copy()
     for i, idx in enumerate(bottom_indices):
         new_population[idx] = child_chromosomes[i]
+    return new_population
+
+
 if __name__ == "__main__":
     main()
