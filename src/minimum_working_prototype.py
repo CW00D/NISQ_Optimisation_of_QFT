@@ -6,6 +6,7 @@ from qiskit.circuit.library import QFT
 from qiskit.quantum_info import Statevector, state_fidelity
 import re
 import numpy as np
+import copy
 
 
 # Main
@@ -13,7 +14,7 @@ import numpy as np
 def main():
     qubits = 3
     initial_circuit_depth = 10
-    population = 10
+    population = 20
     iterations = 100
 
     possible_starting_gates = ["w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "x", "y", "z", "h", "s", "sdg", "t", "tdg"]
@@ -21,7 +22,7 @@ def main():
     chromosomes[1][0][0] = "h"
 
     for i in range(iterations):
-        print("\n\n------------------POPULATION", str(i) + "------------------\n")
+        #print("\n\n------------------POPULATION", str(i) + "------------------\n")
         circuits = get_circuits(chromosomes)
         fitnesses = get_circuit_fitnesses(circuits, qubits)
         print(max(fitnesses))
@@ -39,7 +40,7 @@ def get_circuits(circuit_chromosomes):
 
         # Gate map for Qiskit Aer native gates with explanations
         chromosome_qiskit_gate_map = {
-            "w": lambda qubit: circuit.barrier,  # Barrier (used for blank "wires")
+            "w": lambda qubit: circuit.barrier(qubit),  # Barrier (used for blank "wires")
             "-": lambda qubit: None,  # Placeholder for control qubits (no operation)
             "x": lambda qubit: circuit.x(qubit),  # Pauli-X (NOT) gate
             "y": lambda qubit: circuit.y(qubit),  # Pauli-Y gate
@@ -127,28 +128,31 @@ def get_circuit_fitnesses(circuits, qubits):
 
 # Genetic Operators
 # -----------------------------------------------------
-def apply_genetic_operators(chromosomes, fitnesses):
+def apply_genetic_operators(chromosomes, fitnesses, parent_chromosomes=10):  
     # Sort chromosomes by fitness in descending order
     sorted_indices = sorted(range(len(fitnesses)), key=lambda i: fitnesses[i], reverse=True)
-    top_indices = sorted_indices[:5]  # Top 5 indices
-    bottom_indices = sorted_indices[-5:]  # Bottom 5 indices
 
-    # Generate children through crossover
+    # Preserve the top `parent_chromosomes` chromosomes (deep copy to avoid mutation)
+    elites = [copy.deepcopy(chromosomes[idx]) for idx in sorted_indices[:parent_chromosomes]]
+
+    # Get indices for crossover and mutation
+    top_indices = sorted_indices[:parent_chromosomes]
+    bottom_indices = sorted_indices[-(len(chromosomes) - parent_chromosomes):]
+
+    # Generate children through crossover and mutation
     child_chromosomes = []
-    for i in range(len(bottom_indices)):
-        # Choose two parents randomly from the top 5
+    while len(child_chromosomes) < len(bottom_indices):
         parent_1_index, parent_2_index = np.random.choice(top_indices, 2, replace=False)
         child_1, child_2 = crossover(chromosomes[parent_1_index], chromosomes[parent_2_index])
-
-        # Mutate the children
         child_chromosomes.append(mutate_chromosome(child_1))
         if len(child_chromosomes) < len(bottom_indices):
             child_chromosomes.append(mutate_chromosome(child_2))
 
-    new_population = replace_population(chromosomes, child_chromosomes, bottom_indices)
+    # Replace bottom chromosomes with children and append elites
+    new_population = elites + child_chromosomes
 
     return new_population
-
+ 
 def crossover(parent_1, parent_2):
     """Single-point crossover between two chromosomes."""
     crossover_point = np.random.randint(1, len(parent_1) - 1)
