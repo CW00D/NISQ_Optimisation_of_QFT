@@ -15,7 +15,7 @@ def main():
     qubits = 3
     initial_circuit_depth = 10
     population = 20
-    iterations = 100
+    iterations = 1000
 
     possible_starting_gates = ["w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "x", "y", "z", "h", "s", "sdg", "t", "tdg"]
     chromosomes = [[[possible_starting_gates[np.random.choice(len(possible_starting_gates))] for i in range(qubits)] for i in range(initial_circuit_depth)] for i in range(population)]
@@ -26,8 +26,14 @@ def main():
         circuits = get_circuits(chromosomes)
         fitnesses = get_circuit_fitnesses(circuits, qubits)
         print(max(fitnesses))
+        max_fitness_chromosome = chromosomes[max(range(len(fitnesses)), key=fitnesses.__getitem__)]
+        if max(fitnesses) >= 0.999:
+            print("Stopping early: Fitness threshold reached")
+            break
         chromosomes = apply_genetic_operators(chromosomes, fitnesses)
 
+    print(max_fitness_chromosome)
+    print(get_circuits([max_fitness_chromosome])[0])
 
 # Representaion
 # -----------------------------------------------------
@@ -91,39 +97,75 @@ def get_circuits(circuit_chromosomes):
 # Fitness Function
 # -----------------------------------------------------
 def get_circuit_fitnesses(circuits, qubits):
-    """Evaluate fitness of circuits based on similarity to QFT output over multiple initial states."""
+    """Evaluate fitness of circuits based on similarity to QFT output phases."""
     fitnesses = []
-    
-    # Define and transpile the target QFT circuit
-    target_circuit = QuantumCircuit(qubits)
-    target_circuit.append(QFT(num_qubits=qubits), range(qubits))
-    target_circuit = transpile(target_circuit, basis_gates=['u', 'cx'])
-    target_circuit.save_statevector()
-    
-    # Generate initial states (basis states |000>, |001>, ..., |111>)
-    initial_states = [Statevector.from_label(f"{i:0{qubits}b}") for i in range(2**qubits)]
-    
-    # Simulate the target circuit once for each initial state
+
+    # Simulate the target QFT circuit and get output states
+    target_states = get_qft_target_states(qubits)
+
+    # Simulate each candidate circuit and compare with the target states
     simulator = AerSimulator(method='statevector')
-    target_states = []
-    for state in initial_states:
-        result = simulator.run(target_circuit, initial_state=state).result()
-        target_states.append(result.get_statevector())
-    
-    # Evaluate each candidate circuit
+    initial_states = [Statevector.from_label(f"{i:0{qubits}b}") for i in range(2**qubits)]
+
     for circuit in circuits:
-        total_fidelity = 0
-        for state, target_state in zip(initial_states, target_states):
+        circuit_states = []
+        for state in initial_states:
             result = simulator.run(circuit, initial_state=state).result()
-            circuit_state = result.get_statevector()
-            fidelity = state_fidelity(circuit_state, target_state)
-            total_fidelity += fidelity
-        
-        # Average fidelity across all initial states
-        average_fidelity = total_fidelity / len(initial_states)
-        fitnesses.append(average_fidelity)
-    
+            circuit_states.append(result.get_statevector())
+
+        # Compute fitness based on phase differences
+        fitness = compute_phase_fitness(circuit_states, target_states)
+        fitnesses.append(fitness)
+
     return fitnesses
+
+
+def get_qft_target_states(qubits):
+    """Simulates the QFT circuit for all basis states and returns the output states."""
+    target_states = []
+    simulator = AerSimulator(method='statevector')
+
+    for i in range(2**qubits):
+        state_binary = f"{i:0{qubits}b}"  # Binary string representing the basis state
+        
+        # Create a fresh target circuit for each initial state
+        target_circuit = QuantumCircuit(qubits)
+        
+        # Apply X gates to prepare the initial state |state_binary⟩
+        for j, bit in enumerate(state_binary):
+            if bit == "1":
+                target_circuit.x(j)
+        
+        # Apply the QFT
+        target_circuit.append(QFT(num_qubits=qubits), range(qubits))
+        target_circuit = transpile(target_circuit, basis_gates=['u', 'cx'])
+        target_circuit.save_statevector()
+        
+        # Simulate the circuit
+        result = simulator.run(target_circuit).result()
+        target_states.append(result.get_statevector())
+
+    return target_states
+
+
+def compute_phase_fitness(circuit_states, target_states):
+    """Computes fitness based on phase differences."""
+    total_phase_error = 0
+    for circuit_state, target_state in zip(circuit_states, target_states):
+        circuit_phases = get_phase_differences(circuit_state)
+        target_phases = get_phase_differences(target_state)
+        phase_error = np.linalg.norm(circuit_phases - target_phases)
+        total_phase_error += phase_error
+    
+    # Convert phase error to fitness (lower error means higher fitness)
+    max_possible_error = 2 * np.pi * len(circuit_states)
+    fitness = 1 - (total_phase_error / max_possible_error)
+    return max(fitness, 0)  # Ensure fitness is within [0, 1]
+
+
+def get_phase_differences(state):
+    """Returns the phases of the complex amplitudes in the statevector."""
+    return np.angle(state.data)
 
 
 # Genetic Operators
