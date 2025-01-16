@@ -8,6 +8,53 @@ import re
 import numpy as np
 import copy
 
+# Gate lists
+single_qubit_gates = [
+    "x",
+    "y",
+    "z",
+    "h",
+    "s",
+    "sdg",
+    "t",
+    "tdg",
+    #"u",
+    "rx",
+    "ry",
+    "rz"
+]
+
+double_qubit_gates = [
+    "cx",
+    "cz",
+    "swap",
+    "crx",
+    "cry",
+    "crz",
+    "cp",
+    "rxx",
+    "ryy",
+    "rzz"
+]
+
+triple_qubit_gates = [
+    "ccx",
+    "cswap",
+]
+
+parametrised_gates = [
+    "rx",
+    "ry",
+    "rz",
+    "crx",
+    "cry",
+    "crz",
+    "cp",
+    "rxx",
+    "ryy",
+    "rzz",
+]
+
 
 # Main
 # -----------------------------------------------------
@@ -16,53 +63,6 @@ def main():
     initial_circuit_depth = 10
     population = 3
     iterations = 2
-
-    # Gate lists
-    single_qubit_gates = [
-        "x",
-        "y",
-        "z",
-        "h",
-        "s",
-        "sdg",
-        "t",
-        "tdg",
-        #"u",
-        "rx",
-        "ry",
-        "rz"
-    ]
-
-    double_qubit_gates = [
-        "cx",
-        "cz",
-        "swap",
-        "crx",
-        "cry",
-        "crz",
-        "cp",
-        "rxx",
-        "ryy",
-        "rzz"
-    ]
-
-    triple_qubit_gates = [
-        "ccx",
-        "cswap",
-    ]
-
-    parametrised_gates = [
-        "rx",
-        "ry",
-        "rz",
-        "crx",
-        "cry",
-        "crz",
-        "cp",
-        "rxx",
-        "ryy",
-        "rzz",
-    ]
 
     # Parameters
     population = 10
@@ -185,19 +185,6 @@ def get_circuits(circuit_chromosomes):
             "ryy": lambda q1, q2, theta: circuit.ryy(theta, q1, q2),  # Ising interaction: R_yy(θ) (rotation on the YY interaction)
             "rzz": lambda q1, q2, theta: circuit.rzz(theta, q1, q2),  # Ising interaction: R_zz(θ) (rotation on the ZZ interaction)
         }
-
-        parametrised_gates = [
-            "rx",
-            "ry",
-            "rz",
-            "crx",
-            "cry",
-            "crz",
-            "cp",
-            "rxx",
-            "ryy",
-            "rzz",
-        ]
 
         # Helper to apply gates
         for block in circuit_chromosome:
@@ -332,12 +319,23 @@ def crossover(parent_1, parent_2):
     child_2 = parent_2[:crossover_point] + parent_1[crossover_point:]
     return child_1, child_2
 
-def mutate_chromosome(chromosome, mutation_rate=0.1):
+def mutate_chromosome(chromosome, parameter_mutation_rate=0.1, gate_mutation_rate=0.1, layer_mutation_rate=0.1):
     """Mutates a single chromosome with a given mutation rate."""
+
     for layer in chromosome:
         for i in range(len(layer)):
-            if np.random.rand() < mutation_rate:
+            if np.random.rand() < gate_mutation_rate:
                 layer[i] = np.random.choice(["w", "w", "w", "w", "w", "w", "w", "w", "x", "y", "z", "h", "s", "sdg", "t", "tdg"])
+                #need to adjust this to include the parametrised gates etc
+            elif np.random.rand() < parameter_mutation_rate:
+                if layer[i] in parametrised_gates:
+                    pass
+                #implement parameter mutation here
+    
+    if np.random.rand() < layer_mutation_rate:
+        chromosome.append(["x", "x", "x"])
+        #Implement new layer logic here
+        
     return chromosome
 
 def replace_population(chromosomes, child_chromosomes, bottom_indices):
