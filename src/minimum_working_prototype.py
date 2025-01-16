@@ -7,6 +7,7 @@ from qiskit.quantum_info import Statevector, state_fidelity
 import re
 import numpy as np
 import copy
+from numba import njit
 
 # Gate lists
 single_qubit_gates = [
@@ -61,67 +62,13 @@ parametrised_gates = [
 def main():
     qubits = 3
     initial_circuit_depth = 10
-    population = 3
-    iterations = 2
+    population = 20
+    iterations = 1000
 
     # Parameters
     population = 10
     qubits = 3
     initial_circuit_depth = 10
-
-    # Helper function to apply gates
-    def initialize_chromosomes(population, qubits, initial_circuit_depth, single_qubit_gates, double_qubit_gates, triple_qubit_gates):
-        chromosomes = []
-
-        for _ in range(population):
-            chromosome = []
-
-            for _ in range(initial_circuit_depth):
-                layer = ["w"] * qubits  # Initialize the layer with "w"
-
-                # Apply single-qubit gates
-                for qubit in range(qubits):
-                    if np.random.rand() < 0.7:  # High probability for "w"
-                        layer[qubit] = "w"
-                    else:
-                        gate_choice = np.random.choice(single_qubit_gates)
-                        if gate_choice in parametrised_gates:
-                            layer[qubit] = gate_choice + f"({qubit}, {np.random.random()})"
-                        else:
-                            layer[qubit] = gate_choice + f"({qubit})"
-
-                # Apply double-qubit gates
-                if np.random.rand() < 0.5:  # Moderate probability for double-qubit gates
-                    target_qubit = np.random.randint(0, qubits)
-                    control_qubit = np.random.randint(0, qubits)
-
-                    while control_qubit == target_qubit:  # Ensure control and target are different
-                        control_qubit = np.random.randint(0, qubits)
-
-                    gate_choice = np.random.choice(double_qubit_gates)
-                    if gate_choice in parametrised_gates:
-                        layer[target_qubit] = gate_choice + f"({control_qubit},{target_qubit},{np.random.random()})"
-                    else:
-                        layer[target_qubit] = gate_choice + f"({control_qubit},{target_qubit})"
-                    layer[control_qubit] = "-"  # Mark control qubit
-
-                # Apply triple-qubit gates
-                if np.random.rand() < 0.2:  # Lower probability for triple-qubit gates
-                    qubit_1, qubit_2, qubit_3 = np.random.choice(range(qubits), size=3, replace=False)
-                    gate_choice = np.random.choice(triple_qubit_gates)
-                    if gate_choice in parametrised_gates:
-                        layer[qubit_3] = gate_choice + f"({qubit_1},{qubit_2},{qubit_3},{np.random.random()})"
-                    else:
-                        layer[qubit_3] = gate_choice + f"({qubit_1},{qubit_2},{qubit_3})"
-                    layer[qubit_1] = "-"
-                    layer[qubit_2] = "-"
-
-                chromosome.append(layer)
-
-            chromosomes.append(chromosome)
-
-        return chromosomes
-
 
     # Generate initial chromosomes
     chromosomes = initialize_chromosomes(
@@ -134,18 +81,37 @@ def main():
     )
 
     for i in range(iterations):
-        print("\n\n------------------POPULATION", str(i) + "------------------\n")
+        #print("\n\n------------------POPULATION", str(i) + "------------------\n")
         circuits = get_circuits(chromosomes)
         fitnesses = get_circuit_fitnesses(circuits, qubits)
-        print(max(fitnesses))
         max_fitness_chromosome = chromosomes[max(range(len(fitnesses)), key=fitnesses.__getitem__)]
         if max(fitnesses) >= 0.999:
             print("Stopping early: Fitness threshold reached")
             break
         chromosomes = apply_genetic_operators(chromosomes, fitnesses)
 
-    print(max_fitness_chromosome)
+    print("==================================================")
+    print(max(range(len(fitnesses))))
     print(get_circuits([max_fitness_chromosome])[0])
+    print("==================================================")
+    circuits = get_circuits(chromosomes)
+    for circuit in circuits:
+        print(circuit)
+
+def initialize_chromosomes(population, qubits, initial_circuit_depth, single_qubit_gates, double_qubit_gates, triple_qubit_gates):
+    chromosomes = []
+
+    for _ in range(population):
+        chromosome = []
+
+        for _ in range(initial_circuit_depth):
+            layer = create_new_layer(qubits, single_qubit_gates, double_qubit_gates, triple_qubit_gates)
+            chromosome.append(layer)
+
+        chromosomes.append(chromosome)
+
+    return chromosomes
+
 
 # Representaion
 # -----------------------------------------------------
@@ -206,7 +172,6 @@ def get_circuits(circuit_chromosomes):
         circuit.save_statevector()
 
         circuits.append(circuit.copy())
-        print(circuit, "\n")
 
     return circuits
 
@@ -236,7 +201,6 @@ def get_circuit_fitnesses(circuits, qubits):
 
     return fitnesses
 
-
 def get_qft_target_states(qubits):
     """Simulates the QFT circuit for all basis states and returns the output states."""
     target_states = []
@@ -264,7 +228,6 @@ def get_qft_target_states(qubits):
 
     return target_states
 
-
 def compute_phase_fitness(circuit_states, target_states):
     """Computes fitness based on phase differences."""
     total_phase_error = 0
@@ -278,7 +241,6 @@ def compute_phase_fitness(circuit_states, target_states):
     max_possible_error = 2 * np.pi * len(circuit_states)
     fitness = 1 - (total_phase_error / max_possible_error)
     return max(fitness, 0)  # Ensure fitness is within [0, 1]
-
 
 def get_phase_differences(state):
     """Returns the phases of the complex amplitudes in the statevector."""
@@ -311,7 +273,7 @@ def apply_genetic_operators(chromosomes, fitnesses, parent_chromosomes=10):
     new_population = elites + child_chromosomes
 
     return new_population
- 
+
 def crossover(parent_1, parent_2):
     """Single-point crossover between two chromosomes."""
     crossover_point = np.random.randint(1, len(parent_1) - 1)
@@ -324,26 +286,93 @@ def mutate_chromosome(chromosome, parameter_mutation_rate=0.1, gate_mutation_rat
 
     for layer in chromosome:
         for i in range(len(layer)):
+            # Mutate the gate type
             if np.random.rand() < gate_mutation_rate:
-                layer[i] = np.random.choice(["w", "w", "w", "w", "w", "w", "w", "w", "x", "y", "z", "h", "s", "sdg", "t", "tdg"])
-                #need to adjust this to include the parametrised gates etc
+                gate_type = np.random.choice(["single", "double", "triple"])
+                if gate_type == "single":
+                    gate_choice = np.random.choice(single_qubit_gates)
+                    if gate_choice in parametrised_gates:
+                        layer[i] = gate_choice + f"({i}, {np.random.random()})"
+                    else:
+                        layer[i] = gate_choice + f"({i})"
+                elif gate_type == "double":
+                    target_qubit = np.random.randint(0, len(layer))
+                    control_qubit = np.random.randint(0, len(layer))
+                    while control_qubit == target_qubit:
+                        control_qubit = np.random.randint(0, len(layer))
+                    gate_choice = np.random.choice(double_qubit_gates)
+                    if gate_choice in parametrised_gates:
+                        layer[target_qubit] = gate_choice + f"({control_qubit},{target_qubit},{np.random.random()})"
+                    else:
+                        layer[target_qubit] = gate_choice + f"({control_qubit},{target_qubit})"
+                    layer[control_qubit] = "-"
+                elif gate_type == "triple" and len(layer) >= 3:
+                    qubit_1, qubit_2, qubit_3 = np.random.choice(len(layer), size=3, replace=False)
+                    gate_choice = np.random.choice(triple_qubit_gates)
+                    if gate_choice in parametrised_gates:
+                        layer[qubit_3] = gate_choice + f"({qubit_1},{qubit_2},{qubit_3},{np.random.random()})"
+                    else:
+                        layer[qubit_3] = gate_choice + f"({qubit_1},{qubit_2},{qubit_3})"
+                    layer[qubit_1] = "-"
+                    layer[qubit_2] = "-"
+
+            # Mutate gate parameters
             elif np.random.rand() < parameter_mutation_rate:
-                if layer[i] in parametrised_gates:
-                    pass
-                #implement parameter mutation here
-    
+                match = re.match(r"([a-z]+)\((.*)\)", layer[i])
+                if match and match.group(1) in parametrised_gates:
+                    gate_name, params = match.groups()
+                    params_list = params.split(",")
+                    params_list[-1] = str(np.random.random())  # Mutate the last parameter
+                    layer[i] = f"{gate_name}({','.join(params_list)})"
+
+    # Add a new layer with a certain probability
     if np.random.rand() < layer_mutation_rate:
-        chromosome.append(["x", "x", "x"])
-        #Implement new layer logic here
-        
+        new_layer = create_new_layer(len(chromosome[0]), single_qubit_gates, double_qubit_gates, triple_qubit_gates)
+        chromosome.append(new_layer)
+
     return chromosome
 
-def replace_population(chromosomes, child_chromosomes, bottom_indices):
-    """ Replace bottom chromosomes with children."""
-    new_population = chromosomes.copy()
-    for i, idx in enumerate(bottom_indices):
-        new_population[idx] = child_chromosomes[i]
-    return new_population
+def create_new_layer(qubits, single_qubit_gates, double_qubit_gates, triple_qubit_gates):
+    layer = ["w"] * qubits  # Initialize the layer with "w"
+
+    # Apply single-qubit gates
+    for qubit in range(qubits):
+        if np.random.rand() < 0.7:  # High probability for "w"
+            layer[qubit] = "w"
+        else:
+            gate_choice = np.random.choice(single_qubit_gates)
+            if gate_choice in parametrised_gates:
+                layer[qubit] = gate_choice + f"({qubit}, {np.random.random()})"
+            else:
+                layer[qubit] = gate_choice + f"({qubit})"
+
+    # Apply double-qubit gates
+    if np.random.rand() < 0.5:  # Moderate probability for double-qubit gates
+        target_qubit = np.random.randint(0, qubits)
+        control_qubit = np.random.randint(0, qubits)
+
+        while control_qubit == target_qubit:  # Ensure control and target are different
+            control_qubit = np.random.randint(0, qubits)
+
+        gate_choice = np.random.choice(double_qubit_gates)
+        if gate_choice in parametrised_gates:
+            layer[target_qubit] = gate_choice + f"({control_qubit},{target_qubit},{np.random.random()})"
+        else:
+            layer[target_qubit] = gate_choice + f"({control_qubit},{target_qubit})"
+        layer[control_qubit] = "-"  # Mark control qubit
+
+    # Apply triple-qubit gates
+    if np.random.rand() < 0.2:  # Lower probability for triple-qubit gates
+        qubit_1, qubit_2, qubit_3 = np.random.choice(range(qubits), size=3, replace=False)
+        gate_choice = np.random.choice(triple_qubit_gates)
+        if gate_choice in parametrised_gates:
+            layer[qubit_3] = gate_choice + f"({qubit_1},{qubit_2},{qubit_3},{np.random.random()})"
+        else:
+            layer[qubit_3] = gate_choice + f"({qubit_1},{qubit_2},{qubit_3})"
+        layer[qubit_1] = "-"
+        layer[qubit_2] = "-"
+
+    return layer
 
 
 if __name__ == "__main__":
