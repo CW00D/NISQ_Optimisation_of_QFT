@@ -57,19 +57,16 @@ parametrised_gates = [
 ]
 
 
+# Parameters
+population = 20
+qubits = 3
+initial_circuit_depth = 10
+population = 20
+iterations = 100
+
 # Main
 # -----------------------------------------------------
 def main():
-    qubits = 3
-    initial_circuit_depth = 10
-    population = 20
-    iterations = 1000
-
-    # Parameters
-    population = 10
-    qubits = 3
-    initial_circuit_depth = 10
-
     # Generate initial chromosomes
     chromosomes = initialize_chromosomes(
         population,
@@ -91,7 +88,7 @@ def main():
         chromosomes = apply_genetic_operators(chromosomes, fitnesses)
 
     print("==================================================")
-    print(max(range(len(fitnesses))))
+    print(max(fitnesses))
     print(get_circuits([max_fitness_chromosome])[0])
     print("==================================================")
     circuits = get_circuits(chromosomes)
@@ -101,10 +98,10 @@ def main():
 def initialize_chromosomes(population, qubits, initial_circuit_depth, single_qubit_gates, double_qubit_gates, triple_qubit_gates):
     chromosomes = []
 
-    for _ in range(population):
+    for i in range(population):
         chromosome = []
 
-        for _ in range(initial_circuit_depth):
+        for i in range(initial_circuit_depth):
             layer = create_new_layer(qubits, single_qubit_gates, double_qubit_gates, triple_qubit_gates)
             chromosome.append(layer)
 
@@ -249,7 +246,7 @@ def get_phase_differences(state):
 
 # Genetic Operators
 # -----------------------------------------------------
-def apply_genetic_operators(chromosomes, fitnesses, parent_chromosomes=10):  
+def apply_genetic_operators(chromosomes, fitnesses, parent_chromosomes=population//2):  
     # Sort chromosomes by fitness in descending order
     sorted_indices = sorted(range(len(fitnesses)), key=lambda i: fitnesses[i], reverse=True)
 
@@ -281,7 +278,7 @@ def crossover(parent_1, parent_2):
     child_2 = parent_2[:crossover_point] + parent_1[crossover_point:]
     return child_1, child_2
 
-def mutate_chromosome(chromosome, parameter_mutation_rate=0.1, gate_mutation_rate=0.1, layer_mutation_rate=0.1):
+def mutate_chromosome(chromosome, parameter_mutation_rate=0.1, gate_mutation_rate=0.1, layer_mutation_rate=0.1, max_parameter_mutation=0.1):
     """Mutates a single chromosome with a given mutation rate."""
 
     for layer in chromosome:
@@ -316,13 +313,30 @@ def mutate_chromosome(chromosome, parameter_mutation_rate=0.1, gate_mutation_rat
                     layer[qubit_1] = "-"
                     layer[qubit_2] = "-"
 
-            # Mutate gate parameters
+            # Mutate gate parameters with multiplication or division by a factor
             elif np.random.rand() < parameter_mutation_rate:
                 match = re.match(r"([a-z]+)\((.*)\)", layer[i])
                 if match and match.group(1) in parametrised_gates:
                     gate_name, params = match.groups()
                     params_list = params.split(",")
-                    params_list[-1] = str(np.random.random())  # Mutate the last parameter
+                    
+                    # Get the parameter that we need to mutate (last element in the parameter list)
+                    param_value = float(params_list[-1])
+                    
+                    # Randomly choose a factor to multiply or divide by, within the max_parameter_mutation range
+                    factor = np.random.uniform(1, max_parameter_mutation)
+                    if np.random.rand() < 0.5:  # 50% chance for multiplication or division
+                        param_value *= factor  # Multiply by the factor
+                    else:
+                        param_value /= factor  # Divide by the factor
+
+                    # Ensure the parameter stays positive (optional)
+                    param_value = max(param_value, 0.0)
+
+                    # Update the mutated parameter in the list
+                    params_list[-1] = str(param_value)
+
+                    # Reassemble the gate with the updated parameter
                     layer[i] = f"{gate_name}({','.join(params_list)})"
 
     # Add a new layer with a certain probability
