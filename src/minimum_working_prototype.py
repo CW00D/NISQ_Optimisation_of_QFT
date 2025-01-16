@@ -14,15 +14,127 @@ import copy
 def main():
     qubits = 3
     initial_circuit_depth = 10
-    population = 20
-    iterations = 1000
+    population = 3
+    iterations = 2
 
-    possible_starting_gates = ["w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "x", "y", "z", "h", "s", "sdg", "t", "tdg"]
-    chromosomes = [[[possible_starting_gates[np.random.choice(len(possible_starting_gates))] for i in range(qubits)] for i in range(initial_circuit_depth)] for i in range(population)]
-    chromosomes[1][0][0] = "h"
+    # Gate lists
+    single_qubit_gates = [
+        "x",
+        "y",
+        "z",
+        "h",
+        "s",
+        "sdg",
+        "t",
+        "tdg",
+        #"u",
+        "rx",
+        "ry",
+        "rz"
+    ]
+
+    double_qubit_gates = [
+        "cx",
+        "cz",
+        "swap",
+        "crx",
+        "cry",
+        "crz",
+        "cp",
+        "rxx",
+        "ryy",
+        "rzz"
+    ]
+
+    triple_qubit_gates = [
+        "ccx",
+        "cswap",
+    ]
+
+    parametrised_gates = [
+        "rx",
+        "ry",
+        "rz",
+        "crx",
+        "cry",
+        "crz",
+        "cp",
+        "rxx",
+        "ryy",
+        "rzz",
+    ]
+
+    # Parameters
+    population = 10
+    qubits = 3
+    initial_circuit_depth = 10
+
+    # Helper function to apply gates
+    def initialize_chromosomes(population, qubits, initial_circuit_depth, single_qubit_gates, double_qubit_gates, triple_qubit_gates):
+        chromosomes = []
+
+        for _ in range(population):
+            chromosome = []
+
+            for _ in range(initial_circuit_depth):
+                layer = ["w"] * qubits  # Initialize the layer with "w"
+
+                # Apply single-qubit gates
+                for qubit in range(qubits):
+                    if np.random.rand() < 0.7:  # High probability for "w"
+                        layer[qubit] = "w"
+                    else:
+                        gate_choice = np.random.choice(single_qubit_gates)
+                        if gate_choice in parametrised_gates:
+                            layer[qubit] = gate_choice + f"({qubit}, {np.random.random()})"
+                        else:
+                            layer[qubit] = gate_choice + f"({qubit})"
+
+                # Apply double-qubit gates
+                if np.random.rand() < 0.5:  # Moderate probability for double-qubit gates
+                    target_qubit = np.random.randint(0, qubits)
+                    control_qubit = np.random.randint(0, qubits)
+
+                    while control_qubit == target_qubit:  # Ensure control and target are different
+                        control_qubit = np.random.randint(0, qubits)
+
+                    gate_choice = np.random.choice(double_qubit_gates)
+                    if gate_choice in parametrised_gates:
+                        layer[target_qubit] = gate_choice + f"({control_qubit},{target_qubit},{np.random.random()})"
+                    else:
+                        layer[target_qubit] = gate_choice + f"({control_qubit},{target_qubit})"
+                    layer[control_qubit] = "-"  # Mark control qubit
+
+                # Apply triple-qubit gates
+                if np.random.rand() < 0.2:  # Lower probability for triple-qubit gates
+                    qubit_1, qubit_2, qubit_3 = np.random.choice(range(qubits), size=3, replace=False)
+                    gate_choice = np.random.choice(triple_qubit_gates)
+                    if gate_choice in parametrised_gates:
+                        layer[qubit_3] = gate_choice + f"({qubit_1},{qubit_2},{qubit_3},{np.random.random()})"
+                    else:
+                        layer[qubit_3] = gate_choice + f"({qubit_1},{qubit_2},{qubit_3})"
+                    layer[qubit_1] = "-"
+                    layer[qubit_2] = "-"
+
+                chromosome.append(layer)
+
+            chromosomes.append(chromosome)
+
+        return chromosomes
+
+
+    # Generate initial chromosomes
+    chromosomes = initialize_chromosomes(
+        population,
+        qubits,
+        initial_circuit_depth,
+        single_qubit_gates,
+        double_qubit_gates,
+        triple_qubit_gates
+    )
 
     for i in range(iterations):
-        #print("\n\n------------------POPULATION", str(i) + "------------------\n")
+        print("\n\n------------------POPULATION", str(i) + "------------------\n")
         circuits = get_circuits(chromosomes)
         fitnesses = get_circuit_fitnesses(circuits, qubits)
         print(max(fitnesses))
@@ -47,7 +159,7 @@ def get_circuits(circuit_chromosomes):
         # Gate map for Qiskit Aer native gates with explanations
         chromosome_qiskit_gate_map = {
             "w": lambda qubit: circuit.barrier(qubit),  # Barrier (used for blank "wires")
-            "-": lambda qubit: None,  # Placeholder for control qubits (no operation)
+            "-": None,  # Placeholder for control qubits (no operation)
             "x": lambda qubit: circuit.x(qubit),  # Pauli-X (NOT) gate
             "y": lambda qubit: circuit.y(qubit),  # Pauli-Y gate
             "z": lambda qubit: circuit.z(qubit),  # Pauli-Z gate
@@ -56,23 +168,36 @@ def get_circuits(circuit_chromosomes):
             "sdg": lambda qubit: circuit.sdg(qubit),  # S-dagger (Inverse Phase) gate: R_z(-π/2)
             "t": lambda qubit: circuit.t(qubit),  # T gate: R_z(π/4)
             "tdg": lambda qubit: circuit.tdg(qubit),  # T-dagger gate: R_z(-π/4)
-            "u": lambda qubit: circuit.u(qubit),  # Generalised single-qubit rotation: R_z(λ) R_y(θ) R_z(φ)
-            "rx": lambda qubit: circuit.rx(qubit),  # Rotation around the X axis: R_x(θ)
-            "ry": lambda qubit: circuit.ry(qubit),  # Rotation around the Y axis: R_y(θ)
-            "rz": lambda qubit: circuit.rz(qubit),  # Rotation around the Z axis: R_z(θ)
-            "cx": lambda qubit: circuit.cx(qubit),  # CNOT (Controlled-X) gate
-            "cz": lambda qubit: circuit.cz(qubit),  # Controlled-Z gate
-            "swap": lambda qubit: circuit.swap(qubit),  # SWAP gate (exchange qubits)
-            "ccx": lambda qubit: circuit.ccx(qubit),  # Toffoli gate (Controlled-Controlled-X)
-            "cswap": lambda qubit: circuit.cswap(qubit),  # Controlled-SWAP gate
-            "crx": lambda qubit: circuit.crx(qubit),  # Controlled-RX rotation gate
-            "cry": lambda qubit: circuit.cry(qubit),  # Controlled-RY rotation gate
-            "crz": lambda qubit: circuit.crz(qubit),  # Controlled-RZ rotation gate
-            "cp": lambda qubit: circuit.cp(qubit),  # Controlled-Phase gate
-            "rxx": lambda qubit: circuit.rxx(qubit),  # Ising interaction: R_xx(θ) (rotation on the XX interaction)
-            "ryy": lambda qubit: circuit.ryy(qubit),  # Ising interaction: R_yy(θ) (rotation on the YY interaction)
-            "rzz": lambda qubit: circuit.rzz(qubit),  # Ising interaction: R_zz(θ) (rotation on the ZZ interaction)
+            #"u": lambda qubit, params: circuit.u(*params, qubit),  # Generalised single-qubit rotation: R_z(λ) R_y(θ) R_z(φ)
+            "rx": lambda qubit, theta: circuit.rx(theta, qubit),  # Rotation around the X axis: R_x(θ)
+            "ry": lambda qubit, theta: circuit.ry(theta, qubit),  # Rotation around the Y axis: R_y(θ)
+            "rz": lambda qubit, theta: circuit.rz(theta, qubit),  # Rotation around the Z axis: R_z(θ)
+            "cx": lambda control_qubit, target_qubit: circuit.cx(control_qubit, target_qubit),  # CNOT (Controlled-X) gate
+            "cz": lambda control_qubit, target_qubit: circuit.cz(control_qubit, target_qubit),  # Controlled-Z gate
+            "swap": lambda q1, q2: circuit.swap(q1, q2),  # SWAP gate (exchange qubits)
+            "ccx": lambda q1, q2, target_qubit: circuit.ccx(q1, q2, target_qubit),  # Toffoli gate (Controlled-Controlled-X)
+            "cswap": lambda control_qubit, q1, q2: circuit.cswap(control_qubit, q1, q2),  # Controlled-SWAP gate
+            "crx": lambda control_qubit, target_qubit, theta: circuit.crx(theta, control_qubit, target_qubit),  # Controlled-RX rotation gate
+            "cry": lambda control_qubit, target_qubit, theta: circuit.cry(theta, control_qubit, target_qubit),  # Controlled-RY rotation gate
+            "crz": lambda control_qubit, target_qubit, theta: circuit.crz(theta, control_qubit, target_qubit),  # Controlled-RZ rotation gate
+            "cp": lambda control_qubit, target_qubit, theta: circuit.cp(theta, control_qubit, target_qubit),  # Controlled-Phase gate
+            "rxx": lambda q1, q2, theta: circuit.rxx(theta, q1, q2),  # Ising interaction: R_xx(θ) (rotation on the XX interaction)
+            "ryy": lambda q1, q2, theta: circuit.ryy(theta, q1, q2),  # Ising interaction: R_yy(θ) (rotation on the YY interaction)
+            "rzz": lambda q1, q2, theta: circuit.rzz(theta, q1, q2),  # Ising interaction: R_zz(θ) (rotation on the ZZ interaction)
         }
+
+        parametrised_gates = [
+            "rx",
+            "ry",
+            "rz",
+            "crx",
+            "cry",
+            "crz",
+            "cp",
+            "rxx",
+            "ryy",
+            "rzz",
+        ]
 
         # Helper to apply gates
         for block in circuit_chromosome:
@@ -82,14 +207,19 @@ def get_circuits(circuit_chromosomes):
                     continue
                 elif "(" in gate_spec:
                     gate, args = re.match(r"(\w+)\((.+)\)", gate_spec).groups()
-                    args = list(map(int, args.split(",")))
+                    if gate in parametrised_gates:
+                        args = list(args.split(","))
+                        args[-1] = float(args[-1])
+                        args[:-1] = map(int, args[:-1])
+                    else:
+                        args = list(map(int, args.split(",")))
                     chromosome_qiskit_gate_map[gate](*args)
                 else:
                     chromosome_qiskit_gate_map[gate_spec](qubit)
         circuit.save_statevector()
 
         circuits.append(circuit.copy())
-        #print(circuit, "\n")
+        print(circuit, "\n")
 
     return circuits
 
