@@ -19,10 +19,9 @@ single_qubit_gates = [
     "sdg",
     "t",
     "tdg",
-    #"u",
-    #"rx",
-    #"ry",
-    #"rz"
+    "rx",
+    "ry",
+    "rz"
 ]
 
 double_qubit_gates = [
@@ -30,17 +29,17 @@ double_qubit_gates = [
     "cy",
     "cz",
     "swap",
-    #"crx",
-    #"cry",
-    #"crz",
+    "crx",
+    "cry",
+    "crz",
     "cp",
-    #"rxx",
-    #"ryy",
-    #"rzz"
+    "rxx",
+    "ryy",
+    "rzz"
 ]
 
 triple_qubit_gates = [
-    #"ccx",
+    "ccx",
     "cswap"
 ]
 
@@ -62,7 +61,7 @@ parametrised_gates = [
 # -----------------------------------------------------
 qubits = 3
 initial_circuit_depth = 10
-population = 10
+population = 20
 iterations = 1000
 
 # Main
@@ -76,22 +75,16 @@ def main():
     )
     
     for i in range(iterations):
-        #print("\n\n------------------POPULATION", str(i) + "------------------\n")
         circuits = get_circuits(chromosomes)
         fitnesses = get_circuit_fitnesses(circuits, qubits)
         max_fitness_chromosome = chromosomes[max(range(len(fitnesses)), key=fitnesses.__getitem__)]
-        if max(fitnesses) >= 0.999:
+        if max(fitnesses) >= 1:
             print("Stopping early: Fitness threshold reached")
             break
         chromosomes = apply_genetic_operators(chromosomes, fitnesses)
 
-    print("==================================================")
     print(max(fitnesses))
     print(get_circuits([max_fitness_chromosome])[0])
-    print("==================================================")
-    circuits = get_circuits(chromosomes)
-    for circuit in circuits:
-        print(circuit)
 
 def initialize_chromosomes(population, qubits, initial_circuit_depth):
     chromosomes = []
@@ -129,7 +122,6 @@ def get_circuits(circuit_chromosomes):
             "sdg": lambda qubit: circuit.sdg(qubit),  # S-dagger (Inverse Phase) gate: R_z(-π/2)
             "t": lambda qubit: circuit.t(qubit),  # T gate: R_z(π/4)
             "tdg": lambda qubit: circuit.tdg(qubit),  # T-dagger gate: R_z(-π/4)
-            #"u": lambda qubit, params: circuit.u(*params, qubit),  # Generalised single-qubit rotation: R_z(λ) R_y(θ) R_z(φ)
             "rx": lambda qubit, theta: circuit.rx(theta, qubit),  # Rotation around the X axis: R_x(θ)
             "ry": lambda qubit, theta: circuit.ry(theta, qubit),  # Rotation around the Y axis: R_y(θ)
             "rz": lambda qubit, theta: circuit.rz(theta, qubit),  # Rotation around the Z axis: R_z(θ)
@@ -193,7 +185,6 @@ def get_circuit_fitnesses(circuits, qubits):
             new_circuit.compose(circuit, inplace=True)
             result = simulator.run(new_circuit).result()
             output_state = result.get_statevector()
-            print("Output State:", output_state)
             circuit_states.append(output_state)
 
         # Compute fitness based on phase differences
@@ -203,45 +194,31 @@ def get_circuit_fitnesses(circuits, qubits):
     return fitnesses
 
 def get_qft_target_states(qubits):
-    """Simulates the QFT circuit for all basis states and returns the output states."""
-    target_states = []
+    """Simulate QFT for all computational basis states."""
     simulator = AerSimulator(method='statevector')
+    target_states = []
 
     for i in range(2**qubits):
-        state_binary = f"{i:0{qubits}b}"  # Binary string representing the basis state
-        
-        # Create a fresh target circuit for each initial state
+        state_binary = f"{i:0{qubits}b}"
         target_circuit = QuantumCircuit(qubits)
-        
-        # Apply X gates to prepare the initial state |state_binary⟩
         for j, bit in enumerate(state_binary):
             if bit == "1":
                 target_circuit.x(j)
-        
-        # Apply the QFT
         target_circuit.append(QFT(num_qubits=qubits), range(qubits))
         target_circuit = transpile(target_circuit, basis_gates=['u', 'cx'])
         target_circuit.save_statevector()
-        
-        # Simulate the circuit
         result = simulator.run(target_circuit).result()
         target_states.append(result.get_statevector())
-
     return target_states
 
 def compute_phase_fitness(circuit_states, target_states):
-    """Computes fitness based on phase differences."""
-    total_phase_error = 0
+    """Computes fitness using state fidelity and phase differences."""
+    fitness = 0
     for circuit_state, target_state in zip(circuit_states, target_states):
-        circuit_phases = get_phase_differences(circuit_state)
-        target_phases = get_phase_differences(target_state)
-        phase_error = np.linalg.norm(circuit_phases - target_phases)
-        total_phase_error += phase_error
-    
-    # Convert phase error to fitness (lower error means higher fitness)
-    max_possible_error = 2 * np.pi * len(circuit_states)
-    fitness = 1 - (total_phase_error / max_possible_error)
-    return max(fitness, 0)  # Ensure fitness is within [0, 1]
+        fidelity = state_fidelity(circuit_state, target_state)
+        fitness += fidelity  # Combine fitness based on fidelity
+    fitness /= len(target_states)  # Normalise fitness to [0, 1]
+    return fitness
 
 def get_phase_differences(state):
     """Returns the phases of the complex amplitudes in the statevector."""
@@ -277,7 +254,7 @@ def apply_genetic_operators(chromosomes, fitnesses, parent_chromosomes=populatio
 
 def crossover(parent_1, parent_2):
     """Single-point crossover between two chromosomes."""
-    crossover_point = np.random.randint(1, len(parent_1) - 1)
+    crossover_point = np.random.randint(1, len(parent_1))
     child_1 = parent_1[:crossover_point] + parent_2[crossover_point:]
     child_2 = parent_2[:crossover_point] + parent_1[crossover_point:]
     return child_1, child_2
@@ -401,16 +378,16 @@ def create_new_layer(qubits):
 
 
 if __name__ == "__main__":
-    #main()
-    qft_chromosome = [
-        ["h(0)", "w", "w"],  # Hadamard on qubit 0
-        ["cp(0,1,1.5707963267948966)", "w", "w"],  # Controlled rotation π/2 between qubits 0 and 1
-        ["cp(0,2,0.7853981633974483)", "w", "w"],  # Controlled rotation π/4 between qubits 0 and 2
-        ["w", "h(1)", "w"],  # Hadamard on qubit 1
-        ["w", "cp(1,2,1.5707963267948966)", "w"],  # Controlled rotation π/2 between qubits 1 and 2
-        ["w", "w", "h(2)"],  # Hadamard on qubit 2
-        ["swap(0,2)", "w", "w"],  # Swap qubits 0 and 2
-    ]
-    qft_circuit = get_circuits([qft_chromosome])
-    fitness = get_circuit_fitnesses(qft_circuit, 3)
-    print(fitness)
+    main()
+    #qft_chromosome = [
+    #    ["h(0)", "w", "w"],  # Hadamard on qubit 0
+    #    ["cp(0,1,1.5707963267948966)", "w", "w"],  # Controlled rotation π/2 between qubits 0 and 1
+    #    ["cp(0,2,0.7853981633974483)", "w", "w"],  # Controlled rotation π/4 between qubits 0 and 2
+    #    ["w", "h(1)", "w"],  # Hadamard on qubit 1
+    #    ["w", "cp(1,2,1.5707963267948966)", "w"],  # Controlled rotation π/2 between qubits 1 and 2
+    #    ["w", "w", "h(2)"],  # Hadamard on qubit 2
+    #    ["swap(0,2)", "w", "w"],  # Swap qubits 0 and 2
+    #]
+    #qft_circuit = get_circuits([qft_chromosome])
+    #fitness = get_circuit_fitnesses(qft_circuit, 3)
+    #print(fitness)
