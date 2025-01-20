@@ -7,6 +7,9 @@ from qiskit.quantum_info import Statevector, state_fidelity
 import re
 import numpy as np
 import copy
+import logging
+from datetime import datetime
+import os
 
 # Gate lists
 # -----------------------------------------------------
@@ -67,24 +70,48 @@ iterations = 1000
 # Main
 # -----------------------------------------------------
 def main():
+    # Ensure the experiment results folder exists
+    results_folder = "Experiment Results"
+    os.makedirs(results_folder, exist_ok=True)
+
+    # Create a timestamped filename
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
+    log_filename = f"{timestamp}_{iterations}_Iterations_{population}_Population.log"
+    log_filepath = os.path.join(results_folder, log_filename)
+
+    # Evaluate random circuits
+    print("Evaluating random circuits...")
+    random_max_fitness, random_avg_fitness = evaluate_random_circuits(population, iterations, qubits, initial_circuit_depth)
+    print(f"Random Circuits -> Max Fitness: {random_max_fitness:.6f}, Avg Fitness: {random_avg_fitness:.6f}")
+
     # Generate initial chromosomes
     chromosomes = initialize_chromosomes(
         population,
         qubits,
         initial_circuit_depth,
     )
-    
-    for i in range(iterations):
-        circuits = get_circuits(chromosomes)
-        fitnesses = get_circuit_fitnesses(circuits, qubits)
-        max_fitness_chromosome = chromosomes[max(range(len(fitnesses)), key=fitnesses.__getitem__)]
-        if max(fitnesses) >= 1:
-            print("Stopping early: Fitness threshold reached")
-            break
-        chromosomes = apply_genetic_operators(chromosomes, fitnesses)
 
-    print(max(fitnesses))
-    print(get_circuits([max_fitness_chromosome])[0])
+    with open(log_filepath, "w") as log_file:
+        log_file.write("Iteration,Max Fitness,Average Fitness\n")
+        log_file.write(f"Random Circuits,{random_max_fitness:.6f},{random_avg_fitness:.6f}\n")
+
+        for i in range(iterations):
+            circuits = get_circuits(chromosomes)
+            fitnesses = get_circuit_fitnesses(circuits, qubits)
+            
+            max_fitness = max(fitnesses)
+            avg_fitness = sum(fitnesses) / len(fitnesses)
+            
+            # Log results to the file
+            log_file.write(f"{i},{max_fitness:.6f},{avg_fitness:.6f}\n")
+            
+            if max_fitness >= 1:
+                print("Stopping early: Fitness threshold reached")
+                break
+
+            chromosomes = apply_genetic_operators(chromosomes, fitnesses)
+
+    print("Optimisation complete. Results saved in:", log_filepath)
 
 def initialize_chromosomes(population, qubits, initial_circuit_depth):
     chromosomes = []
@@ -100,6 +127,27 @@ def initialize_chromosomes(population, qubits, initial_circuit_depth):
 
     return chromosomes
 
+def evaluate_random_circuits(population, iterations, qubits, initial_circuit_depth):
+    random_circuits = []
+    
+    # Generate population * iterations random circuits
+    for _ in range(population * iterations):
+        chromosome = []
+        for _ in range(initial_circuit_depth):
+            chromosome.append(create_new_layer(qubits))
+        random_circuits.append(chromosome)
+    
+    # Convert chromosomes to circuits
+    circuits = get_circuits(random_circuits)
+    
+    # Evaluate fitness for all circuits
+    fitnesses = get_circuit_fitnesses(circuits, qubits)
+    
+    # Compute maximum and average fitness
+    max_fitness = max(fitnesses)
+    avg_fitness = sum(fitnesses) / len(fitnesses)
+    
+    return max_fitness, avg_fitness
 
 # Representaion
 # -----------------------------------------------------
