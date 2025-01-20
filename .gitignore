@@ -16,6 +16,7 @@ env/
 Thumbs.db
 
 # Logs
+Experiment Results/
 *.log
 
 # Experiment data and outputs
