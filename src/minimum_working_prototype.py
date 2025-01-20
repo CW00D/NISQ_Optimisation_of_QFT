@@ -7,9 +7,9 @@ from qiskit.quantum_info import Statevector, state_fidelity
 import re
 import numpy as np
 import copy
-from numba import njit
 
 # Gate lists
+# -----------------------------------------------------
 single_qubit_gates = [
     "x",
     "y",
@@ -20,27 +20,28 @@ single_qubit_gates = [
     "t",
     "tdg",
     #"u",
-    "rx",
-    "ry",
-    "rz"
+    #"rx",
+    #"ry",
+    #"rz"
 ]
 
 double_qubit_gates = [
     "cx",
+    "cy",
     "cz",
     "swap",
-    "crx",
-    "cry",
-    "crz",
+    #"crx",
+    #"cry",
+    #"crz",
     "cp",
-    "rxx",
-    "ryy",
-    "rzz"
+    #"rxx",
+    #"ryy",
+    #"rzz"
 ]
 
 triple_qubit_gates = [
-    "ccx",
-    "cswap",
+    #"ccx",
+    "cswap"
 ]
 
 parametrised_gates = [
@@ -58,11 +59,11 @@ parametrised_gates = [
 
 
 # Parameters
-population = 20
+# -----------------------------------------------------
 qubits = 3
 initial_circuit_depth = 10
-population = 20
-iterations = 100
+population = 10
+iterations = 1000
 
 # Main
 # -----------------------------------------------------
@@ -72,11 +73,8 @@ def main():
         population,
         qubits,
         initial_circuit_depth,
-        single_qubit_gates,
-        double_qubit_gates,
-        triple_qubit_gates
     )
-
+    
     for i in range(iterations):
         #print("\n\n------------------POPULATION", str(i) + "------------------\n")
         circuits = get_circuits(chromosomes)
@@ -95,14 +93,14 @@ def main():
     for circuit in circuits:
         print(circuit)
 
-def initialize_chromosomes(population, qubits, initial_circuit_depth, single_qubit_gates, double_qubit_gates, triple_qubit_gates):
+def initialize_chromosomes(population, qubits, initial_circuit_depth):
     chromosomes = []
 
     for i in range(population):
         chromosome = []
 
         for i in range(initial_circuit_depth):
-            layer = create_new_layer(qubits, single_qubit_gates, double_qubit_gates, triple_qubit_gates)
+            layer = create_new_layer(qubits)
             chromosome.append(layer)
 
         chromosomes.append(chromosome)
@@ -136,6 +134,7 @@ def get_circuits(circuit_chromosomes):
             "ry": lambda qubit, theta: circuit.ry(theta, qubit),  # Rotation around the Y axis: R_y(θ)
             "rz": lambda qubit, theta: circuit.rz(theta, qubit),  # Rotation around the Z axis: R_z(θ)
             "cx": lambda control_qubit, target_qubit: circuit.cx(control_qubit, target_qubit),  # CNOT (Controlled-X) gate
+            "cy": lambda control_qubit, target_qubit: circuit.cy(control_qubit, target_qubit),  # Controlled-Y gate
             "cz": lambda control_qubit, target_qubit: circuit.cz(control_qubit, target_qubit),  # Controlled-Z gate
             "swap": lambda q1, q2: circuit.swap(q1, q2),  # SWAP gate (exchange qubits)
             "ccx": lambda q1, q2, target_qubit: circuit.ccx(q1, q2, target_qubit),  # Toffoli gate (Controlled-Controlled-X)
@@ -189,8 +188,13 @@ def get_circuit_fitnesses(circuits, qubits):
     for circuit in circuits:
         circuit_states = []
         for state in initial_states:
-            result = simulator.run(circuit, initial_state=state).result()
-            circuit_states.append(result.get_statevector())
+            new_circuit = QuantumCircuit(*circuit.qregs)
+            new_circuit.initialize(state)
+            new_circuit.compose(circuit, inplace=True)
+            result = simulator.run(new_circuit).result()
+            output_state = result.get_statevector()
+            print("Output State:", output_state)
+            circuit_states.append(output_state)
 
         # Compute fitness based on phase differences
         fitness = compute_phase_fitness(circuit_states, target_states)
@@ -246,7 +250,7 @@ def get_phase_differences(state):
 
 # Genetic Operators
 # -----------------------------------------------------
-def apply_genetic_operators(chromosomes, fitnesses, parent_chromosomes=population//2):  
+def apply_genetic_operators(chromosomes, fitnesses, parent_chromosomes=population//4):  
     # Sort chromosomes by fitness in descending order
     sorted_indices = sorted(range(len(fitnesses)), key=lambda i: fitnesses[i], reverse=True)
 
@@ -278,20 +282,34 @@ def crossover(parent_1, parent_2):
     child_2 = parent_2[:crossover_point] + parent_1[crossover_point:]
     return child_1, child_2
 
-def mutate_chromosome(chromosome, parameter_mutation_rate=0.1, gate_mutation_rate=0.1, layer_mutation_rate=0.1, max_parameter_mutation=0.1):
-    """Mutates a single chromosome with a given mutation rate."""
+def mutate_chromosome(
+    chromosome,
+    parameter_mutation_rate=0.1,
+    gate_mutation_rate=0.1,
+    layer_mutation_rate=0.1,
+    max_parameter_mutation=0.1,
+    layer_deletion_rate=0.05  # Probability of deleting a layer
+):
+    """Mutates a single chromosome with a given mutation rate, including gate removal and layer deletion."""
 
-    for layer in chromosome:
-        for i in range(len(layer)):
-            # Mutate the gate type
+    for i, layer in enumerate(chromosome):
+        # Chance to delete the entire layer
+        if np.random.rand() < layer_deletion_rate:
+            chromosome[i] = ["w"] * len(layer)  # Replace with a blank layer (barriers only)
+            continue
+
+        for j in range(len(layer)):
+            # Chance to mutate the gate type
             if np.random.rand() < gate_mutation_rate:
-                gate_type = np.random.choice(["single", "double", "triple"])
-                if gate_type == "single":
+                gate_type = np.random.choice(["single", "double", "triple", "remove"])
+                if gate_type == "remove":
+                    layer[j] = "w"  # Replace with a barrier to represent gate removal
+                elif gate_type == "single":
                     gate_choice = np.random.choice(single_qubit_gates)
                     if gate_choice in parametrised_gates:
-                        layer[i] = gate_choice + f"({i}, {np.random.random()})"
+                        layer[j] = gate_choice + f"({j}, {np.random.random()})"
                     else:
-                        layer[i] = gate_choice + f"({i})"
+                        layer[j] = gate_choice + f"({j})"
                 elif gate_type == "double":
                     target_qubit = np.random.randint(0, len(layer))
                     control_qubit = np.random.randint(0, len(layer))
@@ -313,40 +331,33 @@ def mutate_chromosome(chromosome, parameter_mutation_rate=0.1, gate_mutation_rat
                     layer[qubit_1] = "-"
                     layer[qubit_2] = "-"
 
-            # Mutate gate parameters with multiplication or division by a factor
+            # Chance to mutate gate parameters
             elif np.random.rand() < parameter_mutation_rate:
-                match = re.match(r"([a-z]+)\((.*)\)", layer[i])
+                match = re.match(r"([a-z]+)\((.*)\)", layer[j])
                 if match and match.group(1) in parametrised_gates:
                     gate_name, params = match.groups()
                     params_list = params.split(",")
-                    
-                    # Get the parameter that we need to mutate (last element in the parameter list)
                     param_value = float(params_list[-1])
-                    
-                    # Randomly choose a factor to multiply or divide by, within the max_parameter_mutation range
-                    factor = np.random.uniform(1, max_parameter_mutation)
-                    if np.random.rand() < 0.5:  # 50% chance for multiplication or division
-                        param_value *= factor  # Multiply by the factor
-                    else:
-                        param_value /= factor  # Divide by the factor
 
-                    # Ensure the parameter stays positive (optional)
+                    # Apply a random factor to mutate the parameter
+                    factor = np.random.uniform(1, max_parameter_mutation)
+                    if np.random.rand() < 0.5:
+                        param_value *= factor
+                    else:
+                        param_value /= factor
                     param_value = max(param_value, 0.0)
 
-                    # Update the mutated parameter in the list
                     params_list[-1] = str(param_value)
+                    layer[j] = f"{gate_name}({','.join(params_list)})"
 
-                    # Reassemble the gate with the updated parameter
-                    layer[i] = f"{gate_name}({','.join(params_list)})"
-
-    # Add a new layer with a certain probability
+    # Chance to add a new layer
     if np.random.rand() < layer_mutation_rate:
-        new_layer = create_new_layer(len(chromosome[0]), single_qubit_gates, double_qubit_gates, triple_qubit_gates)
+        new_layer = create_new_layer(len(chromosome[0]))
         chromosome.append(new_layer)
 
     return chromosome
 
-def create_new_layer(qubits, single_qubit_gates, double_qubit_gates, triple_qubit_gates):
+def create_new_layer(qubits):
     layer = ["w"] * qubits  # Initialize the layer with "w"
 
     # Apply single-qubit gates
@@ -390,4 +401,16 @@ def create_new_layer(qubits, single_qubit_gates, double_qubit_gates, triple_qubi
 
 
 if __name__ == "__main__":
-    main()
+    #main()
+    qft_chromosome = [
+        ["h(0)", "w", "w"],  # Hadamard on qubit 0
+        ["cp(0,1,1.5707963267948966)", "w", "w"],  # Controlled rotation π/2 between qubits 0 and 1
+        ["cp(0,2,0.7853981633974483)", "w", "w"],  # Controlled rotation π/4 between qubits 0 and 2
+        ["w", "h(1)", "w"],  # Hadamard on qubit 1
+        ["w", "cp(1,2,1.5707963267948966)", "w"],  # Controlled rotation π/2 between qubits 1 and 2
+        ["w", "w", "h(2)"],  # Hadamard on qubit 2
+        ["swap(0,2)", "w", "w"],  # Swap qubits 0 and 2
+    ]
+    qft_circuit = get_circuits([qft_chromosome])
+    fitness = get_circuit_fitnesses(qft_circuit, 3)
+    print(fitness)
