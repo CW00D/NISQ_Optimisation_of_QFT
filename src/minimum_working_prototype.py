@@ -64,8 +64,8 @@ parametrised_gates = [
 # -----------------------------------------------------
 qubits = 3
 initial_circuit_depth = 10
-population = 20
-iterations = 1000
+population = 10
+iterations = 200
 
 # Main
 # -----------------------------------------------------
@@ -263,14 +263,39 @@ def compute_phase_fitness(circuit_states, target_states):
     """Computes fitness using state fidelity and phase differences."""
     fitness = 0
     for circuit_state, target_state in zip(circuit_states, target_states):
-        fidelity = state_fidelity(circuit_state, target_state)
+        #fidelity = state_fidelity(circuit_state, target_state)
+        fidelity = phase_sensitive_fidelity(circuit_state, target_state)
         fitness += fidelity  # Combine fitness based on fidelity
     fitness /= len(target_states)  # Normalise fitness to [0, 1]
     return fitness
 
-def get_phase_differences(state):
-    """Returns the phases of the complex amplitudes in the statevector."""
-    return np.angle(state.data)
+def phase_sensitive_fidelity(output_state, target_state):
+    # Ensure input states are Qiskit Statevectors
+    output_sv = Statevector(output_state)
+    target_sv = Statevector(target_state)
+    
+    # Get the computational basis states and their amplitudes
+    output_amplitudes = output_sv.data
+    target_amplitudes = target_sv.data
+    
+    # Extract phases, ignoring amplitudes
+    output_phases = np.angle(output_amplitudes)
+    target_phases = np.angle(target_amplitudes)
+    
+    # Compute phase differences (modulo 2π to handle wrapping)
+    phase_differences = (output_phases - target_phases) % (2 * np.pi)
+    
+    # Map phase differences to the range [-π, π] for meaningful comparison
+    phase_differences = np.where(phase_differences > np.pi, 
+                                 phase_differences - 2 * np.pi, 
+                                 phase_differences)
+    
+    # Compute a fidelity metric based on the phase differences
+    # Example: Mean squared phase error
+    phase_fidelity = 1 - np.mean(phase_differences**2) / (np.pi**2)
+    
+    return phase_fidelity
+
 
 
 # Genetic Operators
@@ -425,7 +450,7 @@ def create_new_layer(qubits):
     return layer
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  
     main()
     #qft_chromosome = [
     #    ["h(0)", "w", "w"],  # Hadamard on qubit 0
