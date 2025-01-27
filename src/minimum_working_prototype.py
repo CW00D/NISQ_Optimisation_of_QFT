@@ -7,7 +7,7 @@ from qiskit.quantum_info import Statevector, state_fidelity
 import re
 import numpy as np
 import copy
-import logging
+import matplotlib.pyplot as plt
 from datetime import datetime
 import os
 
@@ -64,14 +64,14 @@ parametrised_gates = [
 # -----------------------------------------------------
 qubits = 3
 initial_circuit_depth = 10
-population = 10
-iterations = 200
+population = 20
+iterations = 1000
 
 # Main
 # -----------------------------------------------------
 def main():
     # Ensure the experiment results folder exists
-    results_folder = "Experiment Results"
+    results_folder = "Experiment Results\Logs"
     os.makedirs(results_folder, exist_ok=True)
 
     # Create a timestamped filename
@@ -79,10 +79,10 @@ def main():
     log_filename = f"{timestamp}_{iterations}_Iterations_{population}_Population.log"
     log_filepath = os.path.join(results_folder, log_filename)
 
-    # Evaluate random circuits
-    print("Evaluating random circuits...")
-    random_max_fitness, random_avg_fitness = evaluate_random_circuits(population, iterations, qubits, initial_circuit_depth)
-    print(f"Random Circuits -> Max Fitness: {random_max_fitness:.6f}, Avg Fitness: {random_avg_fitness:.6f}")
+    random_max_fitnesses = []
+    random_avg_fitnesses = []
+    ea_max_fitnesses = []
+    ea_avg_fitnesses = []
 
     # Generate initial chromosomes
     chromosomes = initialize_chromosomes(
@@ -92,19 +92,26 @@ def main():
     )
 
     with open(log_filepath, "w") as log_file:
-        log_file.write("Iteration,Max Fitness,Average Fitness\n")
-        log_file.write(f"Random Circuits,{random_max_fitness:.6f},{random_avg_fitness:.6f}\n")
+        log_file.write("Iteration,EA Max Fitness,EA Average Fitness,Random Max Fitness,Random Average Fitness\n")
 
         for i in range(iterations):
+            # Evaluate random circuits for this iteration
+            random_max_fitness, random_avg_fitness = evaluate_random_circuits(population, 1, qubits, initial_circuit_depth)
+            random_max_fitnesses.append(random_max_fitness)
+            random_avg_fitnesses.append(random_avg_fitness)
+
+            # Evaluate EA circuits for this iteration
             circuits = get_circuits(chromosomes)
             fitnesses = get_circuit_fitnesses(circuits, qubits)
-            
+
             max_fitness = max(fitnesses)
             avg_fitness = sum(fitnesses) / len(fitnesses)
-            
+            ea_max_fitnesses.append(max_fitness)
+            ea_avg_fitnesses.append(avg_fitness)
+
             # Log results to the file
-            log_file.write(f"{i},{max_fitness:.6f},{avg_fitness:.6f}\n")
-            
+            log_file.write(f"{i},{max_fitness:.6f},{avg_fitness:.6f},{random_max_fitness:.6f},{random_avg_fitness:.6f}\n")
+
             if max_fitness >= 1:
                 print("Stopping early: Fitness threshold reached")
                 break
@@ -112,6 +119,9 @@ def main():
             chromosomes = apply_genetic_operators(chromosomes, fitnesses)
 
     print("Optimisation complete. Results saved in:", log_filepath)
+
+    # Plot the results
+    plot_results(ea_max_fitnesses, ea_avg_fitnesses, random_max_fitnesses, random_avg_fitnesses)
 
 def initialize_chromosomes(population, qubits, initial_circuit_depth):
     chromosomes = []
@@ -297,7 +307,6 @@ def phase_sensitive_fidelity(output_state, target_state):
     return phase_fidelity
 
 
-
 # Genetic Operators
 # -----------------------------------------------------
 def apply_genetic_operators(chromosomes, fitnesses, parent_chromosomes=population//4):  
@@ -448,6 +457,33 @@ def create_new_layer(qubits):
         layer[qubit_2] = "-"
 
     return layer
+
+
+# Plotting Function
+# -----------------------------------------------------
+def plot_results(ea_max, ea_avg, random_max, random_avg):
+    iterations = range(len(ea_max))
+
+    plt.figure(figsize=(12, 6))
+
+    # Plot EA fitnesses
+    plt.plot(iterations, ea_max, label="EA Max Fitness", color="blue", linestyle="--")
+    plt.plot(iterations, ea_avg, label="EA Avg Fitness", color="blue")
+
+    # Plot random fitnesses
+    plt.plot(iterations, random_max, label="Random Max Fitness", color="orange", linestyle="--")
+    plt.plot(iterations, random_avg, label="Random Avg Fitness", color="orange")
+
+    # Add labels and legend
+    plt.xlabel("Iterations")
+    plt.ylabel("Fitness")
+    plt.title("EA vs Random Circuits: Fitness Comparison")
+    plt.legend()
+    plt.grid(True)
+
+    # Create a timestamped filename
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
+    plt.savefig("Experiment Results\Charts\\" + timestamp + ".png")
 
 
 if __name__ == "__main__":  
