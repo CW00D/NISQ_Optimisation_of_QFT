@@ -94,6 +94,8 @@ def main():
     with open(log_filepath, "w") as log_file:
         log_file.write("Iteration,EA Max Fitness,EA Average Fitness,Random Max Fitness,Random Average Fitness\n")
 
+        overall_max_fitness = 0
+
         for i in range(iterations):
             # Evaluate random circuits for this iteration
             random_max_fitness, random_avg_fitness = evaluate_random_circuits(population, 1, qubits, initial_circuit_depth)
@@ -105,7 +107,9 @@ def main():
             fitnesses = get_circuit_fitnesses(circuits, qubits)
 
             max_fitness = max(fitnesses)
-            avg_fitness = sum(fitnesses) / len(fitnesses)
+            if max_fitness > overall_max_fitness:
+                max_fitness_circuit = circuits[min(range(len(fitnesses)), key=fitnesses.__getitem__)]
+            avg_fitness = sum(fitnesses)/len(fitnesses)
             ea_max_fitnesses.append(max_fitness)
             ea_avg_fitnesses.append(avg_fitness)
 
@@ -119,6 +123,8 @@ def main():
             chromosomes = apply_genetic_operators(chromosomes, fitnesses)
 
     print("Optimisation complete. Results saved in:", log_filepath)
+    print(max_fitness_circuit)
+    print(max_fitness_circuit.depth())
 
     # Plot the results
     plot_results(ea_max_fitnesses, ea_avg_fitnesses, random_max_fitnesses, random_avg_fitnesses)
