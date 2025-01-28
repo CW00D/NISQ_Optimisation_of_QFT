@@ -65,7 +65,7 @@ parametrised_gates = [
 qubits = 3
 initial_circuit_depth = 10
 population = 20
-iterations = 1000
+iterations = 100
 
 # Main
 # -----------------------------------------------------
@@ -76,7 +76,7 @@ def main():
 
     # Create a timestamped filename
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
-    log_filename = f"{timestamp}_{iterations}_Iterations_{population}_Population.log"
+    log_filename = f"Iteration_Execution_{timestamp}.log"
     log_filepath = os.path.join(results_folder, log_filename)
 
     random_max_fitnesses = []
@@ -94,12 +94,15 @@ def main():
     with open(log_filepath, "w") as log_file:
         log_file.write("Iteration,EA Max Fitness,EA Average Fitness,Random Max Fitness,Random Average Fitness\n")
 
+        overall_random_max_fitness = 0
         overall_max_fitness = 0
 
         for i in range(iterations):
             # Evaluate random circuits for this iteration
             random_max_fitness, random_avg_fitness = evaluate_random_circuits(population, 1, qubits, initial_circuit_depth)
-            random_max_fitnesses.append(random_max_fitness)
+            if random_max_fitness > overall_random_max_fitness:
+                overall_random_max_fitness = random_max_fitness
+            random_max_fitnesses.append(overall_random_max_fitness)
             random_avg_fitnesses.append(random_avg_fitness)
 
             # Evaluate EA circuits for this iteration
@@ -127,7 +130,7 @@ def main():
     print(max_fitness_circuit.depth())
 
     # Plot the results
-    plot_results(ea_max_fitnesses, ea_avg_fitnesses, random_max_fitnesses, random_avg_fitnesses)
+    plot_results(ea_max_fitnesses, ea_avg_fitnesses, random_max_fitnesses, random_avg_fitnesses, timestamp)
 
 def initialize_chromosomes(population, qubits, initial_circuit_depth):
     chromosomes = []
@@ -467,28 +470,34 @@ def create_new_layer(qubits):
 
 # Plotting Function
 # -----------------------------------------------------
-def plot_results(ea_max, ea_avg, random_max, random_avg):
-    iterations = range(len(ea_max))
-
-    plt.figure(figsize=(12, 6))
-
-    # Plot EA fitnesses
-    plt.plot(iterations, ea_max, label="EA Max Fitness", color="blue", linestyle="--")
-    plt.plot(iterations, ea_avg, label="EA Avg Fitness", color="blue")
-
-    # Plot random fitnesses
-    plt.plot(iterations, random_max, label="Random Max Fitness", color="orange", linestyle="--")
-    plt.plot(iterations, random_avg, label="Random Avg Fitness", color="orange")
-
-    # Add labels and legend
-    plt.xlabel("Iterations")
+def plot_results(ea_max_fitnesses, ea_avg_fitnesses, random_max_fitnesses, random_avg_fitnesses, timestamp):
+    plt.figure(figsize=(10, 6))
+    
+    # Plot the fitness curves
+    plt.plot(ea_max_fitnesses, label="EA Max Fitness", color="blue", linestyle="-")
+    plt.plot(ea_avg_fitnesses, label="EA Average Fitness", color="blue", linestyle="--")
+    plt.plot(random_max_fitnesses, label="Random Max Fitness", color="orange", linestyle="-")
+    plt.plot(random_avg_fitnesses, label="Random Average Fitness", color="orange", linestyle="--")
+    
+    # Set axis limits
+    plt.ylim(0, 1)  # Y-axis range: 0 to 1
+    plt.xlim(0, len(ea_max_fitnesses) - 1)  # X-axis range: 0 to total iterations
+    
+    # Labels and title
+    plt.xlabel("Iteration")
     plt.ylabel("Fitness")
-    plt.title("EA vs Random Circuits: Fitness Comparison")
+    plt.title(f"Fitness Trends Over Iterations\n({timestamp})")
+    
+    # Add a legend
     plt.legend()
-    plt.grid(True)
+    
+    # Show grid for better readability
+    plt.grid(True, linestyle="--", alpha=0.7)
+    
+    # Save and display the plot
+    plt.tight_layout()
 
     # Create a timestamped filename
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
     plt.savefig("Experiment Results\Charts\Iteration_Execution_" + timestamp + ".png")
 
 

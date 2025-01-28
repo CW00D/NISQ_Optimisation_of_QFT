@@ -68,7 +68,7 @@ initial_circuit_depth = 10
 population = 20
 
 runtime_hours = 0
-runtime_minutes = 20
+runtime_minutes = 5
 time_limit_seconds = (runtime_hours*360 + runtime_minutes*60)/2
 
 # Main
@@ -80,7 +80,7 @@ def main():
 
     # Create a timestamped filename
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
-    log_filename = f"Timed_Execution_{time_limit_seconds}s_{timestamp}.log"
+    log_filename = f"Timed_Execution_{timestamp}.log"
     log_filepath = os.path.join(results_folder, log_filename)
 
     random_max_fitnesses = []
@@ -100,14 +100,11 @@ def main():
 
         # RANDOM GENERATOR PHASE
         random_start_time = time.time()
-        last_sample_time = 0
         overall_random_max_fitness = 0
+        elapsed_time_random = 0
+        values_logged_random = 0
 
-        while True:
-            elapsed_time_random = time.time() - random_start_time
-            if elapsed_time_random > time_limit_seconds:
-                break
-
+        while elapsed_time_random <= time_limit_seconds:
             # Evaluate random circuits for this iteration
             random_max_fitness, random_avg_fitness, max_fitness_circuit_iter = evaluate_random_circuits(population, 1, qubits, initial_circuit_depth)
 
@@ -115,22 +112,20 @@ def main():
                 overall_random_max_fitness = random_max_fitness
 
             # Log and store fitness only at 10-second intervals
-            if elapsed_time_random - last_sample_time >= 10:
-                last_sample_time = elapsed_time_random
+            elapsed_time_random = time.time() - random_start_time
+            if elapsed_time_random >= (10*values_logged_random):
                 random_max_fitnesses.append(overall_random_max_fitness)
                 random_avg_fitnesses.append(random_avg_fitness)
                 log_file.write(f"{elapsed_time_random:.2f},-,-,{random_max_fitness:.6f},{random_avg_fitness:.6f}\n")
+                values_logged_random += 1
 
         # EA PHASE
         ea_start_time = time.time()
-        last_sample_time = 0
         overall_max_fitness = 0
+        elapsed_time_ea = 0
+        values_logged_ea = 0
 
-        while True:
-            elapsed_time_ea = time.time() - ea_start_time
-            if elapsed_time_ea > time_limit_seconds:
-                break
-
+        while elapsed_time_ea <= time_limit_seconds:
             # Evaluate EA circuits for this iteration
             circuits = get_circuits(chromosomes)
             fitnesses = get_circuit_fitnesses(circuits, qubits)
@@ -142,14 +137,15 @@ def main():
 
             avg_fitness = sum(fitnesses) / len(fitnesses)
 
+            chromosomes = apply_genetic_operators(chromosomes, fitnesses)
+
             # Log and store fitness only at 10-second intervals
-            if elapsed_time_ea - last_sample_time >= 10:
-                last_sample_time = elapsed_time_ea
+            elapsed_time_ea = time.time() - ea_start_time
+            if elapsed_time_ea >= (10*values_logged_ea):
                 ea_max_fitnesses.append(max_fitness)
                 ea_avg_fitnesses.append(avg_fitness)
                 log_file.write(f"{elapsed_time_ea:.2f},{max_fitness:.6f},{avg_fitness:.6f},-,-\n")
-
-            chromosomes = apply_genetic_operators(chromosomes, fitnesses)
+                values_logged_ea += 1
 
         # Plot the results
         plot_results(ea_max_fitnesses, ea_avg_fitnesses, random_max_fitnesses, random_avg_fitnesses)
@@ -513,7 +509,7 @@ def plot_results(ea_max_fitnesses, ea_avg_fitnesses, random_max_fitnesses, rando
 
     # Set axis limits
     plt.ylim(0, 1)
-    plt.xlim(0, max(max(elapsed_intervals, default=0), max(random_intervals, default=0)) + 10)
+    plt.xlim(0, max(max(elapsed_intervals, default=0), max(random_intervals, default=0)))
 
     # Label axes and add legend
     plt.xlabel("Elapsed Time (s)")
