@@ -66,7 +66,10 @@ parametrised_gates = [
 qubits = 3
 initial_circuit_depth = 10
 population = 20
-time_limit_seconds = 1*60 #seconds
+
+runtime_hours = 0
+runtime_minutes = 20
+time_limit_seconds = (runtime_hours*360 + runtime_minutes*60)/2
 
 # Main
 # -----------------------------------------------------
