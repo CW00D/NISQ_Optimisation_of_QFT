@@ -4,16 +4,12 @@ from datetime import datetime
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from simple_optimiser import (
-    initialize_chromosomes,
-    evaluate_random_circuits,
-    get_circuits,
-    get_circuit_fitnesses,
-    apply_genetic_operators,
-)
+import simple_optimiser
+import simple_optimiser_noisy_TO_DO
+import moea_optimiser_TO_DO
+import moea_optimiser_noisy_TO_DO
 
-
-def plot_iteration_results(timestamp, ea_max, ea_avg, random_max, random_avg, x_values):
+def plot_iteration_results(timestamp, algorithm_type, ea_max, ea_avg, random_max, random_avg, x_values):
     plt.clf()
     plt.plot(x_values, ea_max, label="EA Max Fitness", color="blue")
     plt.plot(x_values, ea_avg, label="EA Avg Fitness", color="blue", linestyle="--")
@@ -25,10 +21,10 @@ def plot_iteration_results(timestamp, ea_max, ea_avg, random_max, random_avg, x_
     plt.ylim(0, 1)
     plt.title("Fitness Over Iterations")
     plt.grid(True)
-    plt.savefig(f"Experiment Results\Charts\Iteration_Execution_" + timestamp + ".png")
+    plt.savefig(f"Experiment Results\Charts\{algorithm_type.__name__.capitalize()}\Iteration_Execution\\" + timestamp + ".png")
     plt.close()
 
-def plot_timed_results(timestamp, ea_max, ea_avg, random_max, random_avg, ea_x_values, random_x_values):
+def plot_timed_results(timestamp, algorithm_type, ea_max, ea_avg, random_max, random_avg, ea_x_values, random_x_values):
     plt.clf()
     plt.plot(random_x_values, random_max, label="Random Max Overall Fitness", color="orange")
     plt.plot(random_x_values, random_avg, label="Random Avg Fitness", color="orange", linestyle="--")
@@ -41,20 +37,20 @@ def plot_timed_results(timestamp, ea_max, ea_avg, random_max, random_avg, ea_x_v
     plt.xlim(0, max(ea_x_values + random_x_values) if (ea_x_values + random_x_values) else 1)
     plt.title("Fitness Over Time")
     plt.grid(True)
-    plt.savefig(f"Experiment Results\Charts\Timed_Execution_" + timestamp + ".png")
+    plt.savefig(f"Experiment Results\Charts\{algorithm_type.__name__.capitalize()}\Timed_Execution\\" + timestamp + ".png")
     plt.close()
 
-def execute_optimisation(timestamp, mode="iteration", iterations=1000, runtime_minutes=10, population=20, qubits=3, initial_circuit_depth=10):
-    results_folder = "Experiment Results\Logs"
+def execute_optimisation(timestamp, algorithm_type=simple_optimiser, mode="iteration", iterations=1000, runtime_minutes=10, population=20, qubits=3, initial_circuit_depth=10):
+    results_folder = f"Experiment Results\Logs\{algorithm_type.__name__.capitalize()}\{mode.capitalize()}_Execution"
     os.makedirs(results_folder, exist_ok=True)
 
-    log_filename = f"{mode.capitalize()}_Execution_{timestamp}.log"
+    log_filename = f"{timestamp}.log"
     log_filepath = os.path.join(results_folder, log_filename)
 
     random_max_fitnesses, random_avg_fitnesses = [], []
     ea_max_fitnesses, ea_avg_fitnesses = [], []
     max_random_fitness = 0  # Track overall max random fitness
-    chromosomes = initialize_chromosomes(population, qubits, initial_circuit_depth)
+    chromosomes = algorithm_type.initialize_chromosomes(population, qubits, initial_circuit_depth)
     
     with open(log_filepath, "w") as log_file:
         log_file.write("Time/Iteration,EA Max Fitness,EA Avg Fitness,Random Max Overall Fitness,Random Avg Fitness\n")
@@ -62,13 +58,13 @@ def execute_optimisation(timestamp, mode="iteration", iterations=1000, runtime_m
         if mode == "iteration":
             x_values = list(range(iterations))
             for i in x_values:
-                random_max_fitness, random_avg_fitness = evaluate_random_circuits(population, 1, qubits, initial_circuit_depth)
+                random_max_fitness, random_avg_fitness = algorithm_type.evaluate_random_circuits(population, 1, qubits, initial_circuit_depth)
                 max_random_fitness = max(max_random_fitness, random_max_fitness)
                 random_max_fitnesses.append(max_random_fitness)
                 random_avg_fitnesses.append(random_avg_fitness)
                 
-                circuits = get_circuits(chromosomes)
-                fitnesses = get_circuit_fitnesses(circuits, qubits)
+                circuits = algorithm_type.get_circuits(chromosomes)
+                fitnesses = algorithm_type.get_circuit_fitnesses(circuits, qubits)
                 max_fitness, avg_fitness = max(fitnesses), sum(fitnesses) / len(fitnesses)
                 ea_max_fitnesses.append(max_fitness)
                 ea_avg_fitnesses.append(avg_fitness)
@@ -79,9 +75,9 @@ def execute_optimisation(timestamp, mode="iteration", iterations=1000, runtime_m
                     print("Stopping early: Fitness threshold reached")
                     break
 
-                chromosomes = apply_genetic_operators(chromosomes, fitnesses, population // 4)
+                chromosomes = algorithm_type.apply_genetic_operators(chromosomes, fitnesses, population // 4)
 
-            plot_iteration_results(timestamp, ea_max_fitnesses, ea_avg_fitnesses, random_max_fitnesses, random_avg_fitnesses, x_values)
+            plot_iteration_results(timestamp, algorithm_type, ea_max_fitnesses, ea_avg_fitnesses, random_max_fitnesses, random_avg_fitnesses, x_values)
         
         elif mode == "timed":
             start_time = time.time()
@@ -96,7 +92,7 @@ def execute_optimisation(timestamp, mode="iteration", iterations=1000, runtime_m
             # Run random generator for half the time
             while elapsed_time < half_runtime:
                 elapsed_time = time.time() - start_time
-                random_max_fitness, random_avg_fitness = evaluate_random_circuits(population, 1, qubits, initial_circuit_depth)
+                random_max_fitness, random_avg_fitness = algorithm_type.evaluate_random_circuits(population, 1, qubits, initial_circuit_depth)
                 max_random_fitness = max(max_random_fitness, random_max_fitness)
                 
                 if elapsed_time >= (log_interval * values_logged_random):
@@ -111,8 +107,8 @@ def execute_optimisation(timestamp, mode="iteration", iterations=1000, runtime_m
             elapsed_time = 0
             while elapsed_time < half_runtime:
                 elapsed_time = time.time() - ea_start_time
-                circuits = get_circuits(chromosomes)
-                fitnesses = get_circuit_fitnesses(circuits, qubits)
+                circuits = algorithm_type.get_circuits(chromosomes)
+                fitnesses = algorithm_type.get_circuit_fitnesses(circuits, qubits)
                 max_fitness, avg_fitness = max(fitnesses), sum(fitnesses) / len(fitnesses)
                 
                 if elapsed_time >= (log_interval * values_logged_ea):
@@ -122,13 +118,13 @@ def execute_optimisation(timestamp, mode="iteration", iterations=1000, runtime_m
                     log_file.write(f"{elapsed_time:.2f},{max_fitness:.6f},{avg_fitness:.6f},,\n")
                     values_logged_ea += 1
                 
-                chromosomes = apply_genetic_operators(chromosomes, fitnesses, population // 4)
+                chromosomes = algorithm_type.apply_genetic_operators(chromosomes, fitnesses, population // 4)
 
-            plot_timed_results(timestamp, ea_max_fitnesses, ea_avg_fitnesses, random_max_fitnesses, random_avg_fitnesses, ea_x_values, random_x_values)
+            plot_timed_results(timestamp, algorithm_type, ea_max_fitnesses, ea_avg_fitnesses, random_max_fitnesses, random_avg_fitnesses, ea_x_values, random_x_values)
     
     print("Optimisation complete. Results saved in:", log_filepath)
 
 if __name__ == "__main__":
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
-    execute_optimisation(timestamp, mode="iteration", iterations=1000)
-    execute_optimisation(timestamp, mode="timed", runtime_minutes=5)
+    execute_optimisation(timestamp, simple_optimiser, mode="iteration", iterations=10)
+    execute_optimisation(timestamp, simple_optimiser, mode="timed", runtime_minutes=1/3)
