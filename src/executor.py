@@ -5,7 +5,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import simple_optimiser
-#import simple_optimiser_noisy
+import simple_optimiser_noisy
 #import moea_optimiser
 #import moea_optimiser_noisy
 
@@ -126,5 +126,5 @@ def execute_optimisation(timestamp, algorithm_type=simple_optimiser, mode="itera
 
 if __name__ == "__main__":
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
-    execute_optimisation(timestamp, simple_optimiser, mode="iteration", iterations=1000)
-    #execute_optimisation(timestamp, simple_optimiser, mode="timed", runtime_minutes=10)
+    execute_optimisation(timestamp, simple_optimiser_noisy, mode="iteration", iterations=100)
+    execute_optimisation(timestamp, simple_optimiser_noisy, mode="timed", runtime_minutes=5)
