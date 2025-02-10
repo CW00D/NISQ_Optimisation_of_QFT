@@ -222,7 +222,7 @@ def phase_sensitive_fidelity(output_state, target_state):
 
 # Genetic Operators
 # -----------------------------------------------------
-def apply_genetic_operators(chromosomes, fitnesses, parent_chromosomes):  
+def apply_genetic_operators(chromosomes, fitnesses, parent_chromosomes, parameter_mutation_rate, gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate):  
     # Sort chromosomes by fitness in descending order
     sorted_indices = sorted(range(len(fitnesses)), key=lambda i: fitnesses[i], reverse=True)
 
@@ -238,9 +238,9 @@ def apply_genetic_operators(chromosomes, fitnesses, parent_chromosomes):
     while len(child_chromosomes) < len(bottom_indices):
         parent_1_index, parent_2_index = np.random.choice(top_indices, 2, replace=False)
         child_1, child_2 = crossover(chromosomes[parent_1_index], chromosomes[parent_2_index])
-        child_chromosomes.append(mutate_chromosome(child_1))
+        child_chromosomes.append(mutate_chromosome(child_1, parameter_mutation_rate, gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate))
         if len(child_chromosomes) < len(bottom_indices):
-            child_chromosomes.append(mutate_chromosome(child_2))
+            child_chromosomes.append(mutate_chromosome(child_2, parameter_mutation_rate, gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate))
 
     # Replace bottom chromosomes with children and append elites
     new_population = elites + child_chromosomes
@@ -254,14 +254,7 @@ def crossover(parent_1, parent_2):
     child_2 = parent_2[:crossover_point] + parent_1[crossover_point:]
     return child_1, child_2
 
-def mutate_chromosome(
-    chromosome,
-    parameter_mutation_rate=0.1,
-    gate_mutation_rate=0.1,
-    layer_mutation_rate=0.1,
-    max_parameter_mutation=0.1,
-    layer_deletion_rate=0.05  # Probability of deleting a layer
-):
+def mutate_chromosome(chromosome, parameter_mutation_rate, gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate):
     """Mutates a single chromosome with a given mutation rate, including gate removal and layer deletion."""
 
     for i, layer in enumerate(chromosome):

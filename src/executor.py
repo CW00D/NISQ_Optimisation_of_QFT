@@ -9,6 +9,19 @@ import simple_optimiser_noisy
 #import moea_optimiser
 #import moea_optimiser_noisy
 
+# Mutation Parameters
+parameter_mutation_rate=0.2
+gate_mutation_rate=0.3
+layer_mutation_rate=0.2
+max_parameter_mutation=0.2
+layer_deletion_rate=0.05
+
+# Simulation Parameters
+population=20
+elitism_number = population // 3
+qubits=3
+initial_circuit_depth=10
+
 def plot_iteration_results(timestamp, algorithm_type, ea_max, ea_avg, random_max, random_avg, x_values):
     plt.clf()
     plt.plot(x_values, ea_max, label="EA Max Fitness", color="blue")
@@ -40,7 +53,7 @@ def plot_timed_results(timestamp, algorithm_type, ea_max, ea_avg, random_max, ra
     plt.savefig(f"Experiment Results\Charts\{algorithm_type.__name__.capitalize()}\Timed_Execution\\" + timestamp + ".png")
     plt.close()
 
-def execute_optimisation(timestamp, algorithm_type=simple_optimiser, mode="iteration", iterations=1000, runtime_minutes=10, population=20, qubits=3, initial_circuit_depth=10):
+def execute_optimisation(timestamp, algorithm_type, mode, population, qubits, initial_circuit_depth, elitism_number, iterations=-1, runtime_minutes=-1):
     results_folder = f"Experiment Results\Logs\{algorithm_type.__name__.capitalize()}\{mode.capitalize()}_Execution"
     os.makedirs(results_folder, exist_ok=True)
 
@@ -75,7 +88,7 @@ def execute_optimisation(timestamp, algorithm_type=simple_optimiser, mode="itera
                     print("Stopping early: Fitness threshold reached")
                     break
 
-                chromosomes = algorithm_type.apply_genetic_operators(chromosomes, fitnesses, population // 4)
+                chromosomes = algorithm_type.apply_genetic_operators(chromosomes, fitnesses, elitism_number, parameter_mutation_rate, gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate)
 
             plot_iteration_results(timestamp, algorithm_type, ea_max_fitnesses, ea_avg_fitnesses, random_max_fitnesses, random_avg_fitnesses, x_values)
         
@@ -118,7 +131,7 @@ def execute_optimisation(timestamp, algorithm_type=simple_optimiser, mode="itera
                     log_file.write(f"{elapsed_time:.2f},{max_fitness:.6f},{avg_fitness:.6f},,\n")
                     values_logged_ea += 1
                 
-                chromosomes = algorithm_type.apply_genetic_operators(chromosomes, fitnesses, population // 4)
+                chromosomes = algorithm_type.apply_genetic_operators(chromosomes, fitnesses, elitism_number, parameter_mutation_rate, gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate)
 
             plot_timed_results(timestamp, algorithm_type, ea_max_fitnesses, ea_avg_fitnesses, random_max_fitnesses, random_avg_fitnesses, ea_x_values, random_x_values)
     
@@ -126,5 +139,5 @@ def execute_optimisation(timestamp, algorithm_type=simple_optimiser, mode="itera
 
 if __name__ == "__main__":
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
-    execute_optimisation(timestamp, simple_optimiser_noisy, mode="iteration", iterations=100)
-    execute_optimisation(timestamp, simple_optimiser_noisy, mode="timed", runtime_minutes=5)
+    execute_optimisation(timestamp, simple_optimiser, mode="iteration",population=population, elitism_number=elitism_number, qubits=qubits, initial_circuit_depth=initial_circuit_depth, iterations=1000)
+    execute_optimisation(timestamp, simple_optimiser, mode="timed", population=population, elitism_number=elitism_number, qubits=qubits, initial_circuit_depth=initial_circuit_depth, runtime_minutes=10)
