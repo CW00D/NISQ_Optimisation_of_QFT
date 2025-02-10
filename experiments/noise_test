@@ -1,0 +1,5 @@
+from qiskit.circuit.library import EfficientSU2
+ 
+n_qubits = 8
+circuit = EfficientSU2(n_qubits)
+circuit.decompose().draw("mpl")

@@ -57,6 +57,8 @@ parametrised_gates = [
 
 # Initialisation/Helper Functions
 # -----------------------------------------------------
+SIMULATOR = AerSimulator(method='statevector')
+
 def initialize_chromosomes(population, qubits, initial_circuit_depth):
     chromosomes = []
     for _ in range(population):
@@ -76,10 +78,9 @@ def get_circuits(circuit_chromosomes):
     circuits = []
     
     for circuit_chromosome in circuit_chromosomes:
-        # Initialise circuit
-        circuit = QuantumCircuit(len(circuit_chromosome[0]))
+        circuit = QuantumCircuit(len(circuit_chromosome[0]))  # Create circuit
 
-        # Gate map for Qiskit Aer native gates with explanations
+        # Gate map for Qiskit Aer native gates
         chromosome_qiskit_gate_map = {
             "w": lambda qubit: circuit.barrier(qubit),  # Barrier (used for blank "wires")
             "-": None,  # Placeholder for control qubits (no operation)
@@ -109,7 +110,7 @@ def get_circuits(circuit_chromosomes):
             "rzz": lambda q1, q2, theta: circuit.rzz(theta, q1, q2),  # Ising interaction: R_zz(θ) (rotation on the ZZ interaction)
         }
 
-        # Helper to apply gates
+        # Apply gates from the chromosome representation
         for block in circuit_chromosome:
             for qubit in range(len(block)):
                 gate_spec = block[qubit]
@@ -126,8 +127,8 @@ def get_circuits(circuit_chromosomes):
                     chromosome_qiskit_gate_map[gate](*args)
                 else:
                     chromosome_qiskit_gate_map[gate_spec](qubit)
-        circuit.save_statevector()
 
+        # DO NOT SAVE STATEVECTOR HERE ANYMORE
         circuits.append(circuit.copy())
 
     return circuits
@@ -135,36 +136,36 @@ def get_circuits(circuit_chromosomes):
 
 # Fitness Function
 # -----------------------------------------------------
-def get_circuit_fitnesses(circuits, qubits):
+def get_circuit_fitnesses(circuits, qubits, simulator=SIMULATOR):
     """Evaluate fitness of circuits based on similarity to QFT output phases."""
     fitnesses = []
-
-    # Simulate the target QFT circuit and get output states
-    target_states = get_qft_target_states(qubits)
-
-    # Simulate each candidate circuit and compare with the target states
-    simulator = AerSimulator(method='statevector')
+    target_states = get_qft_target_states(qubits, simulator)
     initial_states = [Statevector.from_label(f"{i:0{qubits}b}") for i in range(2**qubits)]
 
+    # Prepare all circuits for batch simulation
+    batch_circuits = []
     for circuit in circuits:
-        circuit_states = []
         for state in initial_states:
             new_circuit = QuantumCircuit(*circuit.qregs)
             new_circuit.initialize(state)
             new_circuit.compose(circuit, inplace=True)
-            result = simulator.run(new_circuit).result()
-            output_state = result.get_statevector()
-            circuit_states.append(output_state)
+            new_circuit.save_statevector()  # Only saving statevector here!
+            batch_circuits.append(new_circuit)
 
-        # Compute fitness based on phase differences
+    # Run all circuits in one batch
+    results = simulator.run(batch_circuits).result()
+    output_states = [results.get_statevector(i) for i in range(len(batch_circuits))]
+
+    # Process results
+    for i in range(0, len(output_states), len(initial_states)):
+        circuit_states = output_states[i:i+len(initial_states)]
         fitness = compute_phase_fitness(circuit_states, target_states)
         fitnesses.append(fitness)
 
     return fitnesses
 
-def get_qft_target_states(qubits):
-    """Simulate QFT for all computational basis states."""
-    simulator = AerSimulator(method='statevector')
+def get_qft_target_states(qubits, simulator=SIMULATOR):
+    """Simulate QFT for all computational basis states once and store them."""
     target_states = []
 
     for i in range(2**qubits):
@@ -178,6 +179,7 @@ def get_qft_target_states(qubits):
         target_circuit.save_statevector()
         result = simulator.run(target_circuit).result()
         target_states.append(result.get_statevector())
+
     return target_states
 
 def compute_phase_fitness(circuit_states, target_states):

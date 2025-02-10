@@ -2,6 +2,28 @@ from qiskit import QuantumCircuit, transpile
 from qiskit_aer import AerSimulator
 from qiskit.circuit.library import QFT
 from qiskit.quantum_info import Statevector, state_fidelity
+
+
+#---------------------------------------------------------------
+print("Loading backend models")
+
+#New for noise
+from qiskit_aer.noise import NoiseModel
+from qiskit_ibm_runtime import QiskitRuntimeService
+
+# Load IBM Quantum account
+service = QiskitRuntimeService()
+
+# Select a backend
+backend = service.backend('ibm_brisbane')
+
+# Create a noise model from the backend
+noise_model = NoiseModel.from_backend(backend)
+
+print("Loaded backend models")
+
+#---------------------------------------------------------------
+
 import re
 import numpy as np
 import copy
@@ -57,8 +79,6 @@ parametrised_gates = [
 
 # Initialisation/Helper Functions
 # -----------------------------------------------------
-SIMULATOR = AerSimulator(method='statevector')
-
 def initialize_chromosomes(population, qubits, initial_circuit_depth):
     chromosomes = []
     for _ in range(population):
@@ -78,9 +98,10 @@ def get_circuits(circuit_chromosomes):
     circuits = []
     
     for circuit_chromosome in circuit_chromosomes:
-        circuit = QuantumCircuit(len(circuit_chromosome[0]))  # Create circuit
+        # Initialise circuit
+        circuit = QuantumCircuit(len(circuit_chromosome[0]))
 
-        # Gate map for Qiskit Aer native gates
+        # Gate map for Qiskit Aer native gates with explanations
         chromosome_qiskit_gate_map = {
             "w": lambda qubit: circuit.barrier(qubit),  # Barrier (used for blank "wires")
             "-": None,  # Placeholder for control qubits (no operation)
@@ -110,7 +131,7 @@ def get_circuits(circuit_chromosomes):
             "rzz": lambda q1, q2, theta: circuit.rzz(theta, q1, q2),  # Ising interaction: R_zz(θ) (rotation on the ZZ interaction)
         }
 
-        # Apply gates from the chromosome representation
+        # Helper to apply gates
         for block in circuit_chromosome:
             for qubit in range(len(block)):
                 gate_spec = block[qubit]
@@ -127,8 +148,8 @@ def get_circuits(circuit_chromosomes):
                     chromosome_qiskit_gate_map[gate](*args)
                 else:
                     chromosome_qiskit_gate_map[gate_spec](qubit)
+        circuit.save_statevector()
 
-        # DO NOT SAVE STATEVECTOR HERE ANYMORE
         circuits.append(circuit.copy())
 
     return circuits
@@ -136,36 +157,41 @@ def get_circuits(circuit_chromosomes):
 
 # Fitness Function
 # -----------------------------------------------------
-def get_circuit_fitnesses(circuits, qubits, simulator=SIMULATOR):
+def get_circuit_fitnesses(circuits, qubits):
     """Evaluate fitness of circuits based on similarity to QFT output phases."""
     fitnesses = []
-    target_states = get_qft_target_states(qubits, simulator)
+
+    # Simulate the target QFT circuit and get output states
+    target_states = get_qft_target_states(qubits)
+
+    # Simulate each candidate circuit and compare with the target states
+    simulator = AerSimulator(noise_model=noise_model, method='statevector')
+    print("Getting circuit fitnesses")
     initial_states = [Statevector.from_label(f"{i:0{qubits}b}") for i in range(2**qubits)]
 
-    # Prepare all circuits for batch simulation
-    batch_circuits = []
     for circuit in circuits:
+        print("New Circuit")
+        circuit_states = []
         for state in initial_states:
             new_circuit = QuantumCircuit(*circuit.qregs)
             new_circuit.initialize(state)
             new_circuit.compose(circuit, inplace=True)
-            new_circuit.save_statevector()  # Only saving statevector here!
-            batch_circuits.append(new_circuit)
+            print("\tPreparing to run")
+            result = simulator.run(new_circuit).result()
+            print("\tSimulator run")
+            output_state = result.get_statevector()
+            circuit_states.append(output_state)
 
-    # Run all circuits in one batch
-    results = simulator.run(batch_circuits).result()
-    output_states = [results.get_statevector(i) for i in range(len(batch_circuits))]
-
-    # Process results
-    for i in range(0, len(output_states), len(initial_states)):
-        circuit_states = output_states[i:i+len(initial_states)]
+        # Compute fitness based on phase differences
         fitness = compute_phase_fitness(circuit_states, target_states)
         fitnesses.append(fitness)
 
+    print("Completed getting circuit fitnesses")
     return fitnesses
 
-def get_qft_target_states(qubits, simulator=SIMULATOR):
-    """Simulate QFT for all computational basis states once and store them."""
+def get_qft_target_states(qubits):
+    """Simulate QFT for all computational basis states."""
+    simulator = AerSimulator(method='statevector')
     target_states = []
 
     for i in range(2**qubits):
@@ -179,7 +205,6 @@ def get_qft_target_states(qubits, simulator=SIMULATOR):
         target_circuit.save_statevector()
         result = simulator.run(target_circuit).result()
         target_states.append(result.get_statevector())
-
     return target_states
 
 def compute_phase_fitness(circuit_states, target_states):
