@@ -66,11 +66,29 @@ def initialize_chromosomes(population, qubits, initial_circuit_depth):
         chromosomes.append(chromosome)
     return chromosomes
 
-def evaluate_random_circuits(population, iterations, qubits, initial_circuit_depth):
+def evaluate_random_circuits(population, iterations, qubits, initial_circuit_depth, target_states):
     random_circuits = [[create_new_layer(qubits) for _ in range(initial_circuit_depth)] for _ in range(population*iterations)]
     circuits = get_circuits(random_circuits)
-    fitnesses = get_circuit_fitnesses(circuits, qubits)
+    fitnesses = get_circuit_fitnesses(target_states, circuits, qubits)
     return max(fitnesses), sum(fitnesses)/len(fitnesses)
+
+def get_qft_target_states(qubits, simulator=SIMULATOR):
+    """Simulate QFT for all computational basis states once and store them."""
+    target_states = []
+
+    for i in range(2**qubits):
+        state_binary = f"{i:0{qubits}b}"
+        target_circuit = QuantumCircuit(qubits)
+        for j, bit in enumerate(state_binary):
+            if bit == "1":
+                target_circuit.x(j)
+        target_circuit.append(QFT(num_qubits=qubits), range(qubits))
+        target_circuit = transpile(target_circuit, basis_gates=['u', 'cx'])
+        target_circuit.save_statevector()
+        result = simulator.run(target_circuit).result()
+        target_states.append(result.get_statevector())
+
+    return target_states
 
 # Representaion
 # -----------------------------------------------------
@@ -136,10 +154,9 @@ def get_circuits(circuit_chromosomes):
 
 # Fitness Function
 # -----------------------------------------------------
-def get_circuit_fitnesses(circuits, qubits, simulator=SIMULATOR):
+def get_circuit_fitnesses(target_states, circuits, qubits, simulator=SIMULATOR):
     """Evaluate fitness of circuits based on similarity to QFT output phases."""
     fitnesses = []
-    target_states = get_qft_target_states(qubits, simulator)
     initial_states = [Statevector.from_label(f"{i:0{qubits}b}") for i in range(2**qubits)]
 
     # Prepare all circuits for batch simulation
@@ -164,30 +181,12 @@ def get_circuit_fitnesses(circuits, qubits, simulator=SIMULATOR):
 
     return fitnesses
 
-def get_qft_target_states(qubits, simulator=SIMULATOR):
-    """Simulate QFT for all computational basis states once and store them."""
-    target_states = []
-
-    for i in range(2**qubits):
-        state_binary = f"{i:0{qubits}b}"
-        target_circuit = QuantumCircuit(qubits)
-        for j, bit in enumerate(state_binary):
-            if bit == "1":
-                target_circuit.x(j)
-        target_circuit.append(QFT(num_qubits=qubits), range(qubits))
-        target_circuit = transpile(target_circuit, basis_gates=['u', 'cx'])
-        target_circuit.save_statevector()
-        result = simulator.run(target_circuit).result()
-        target_states.append(result.get_statevector())
-
-    return target_states
-
 def compute_phase_fitness(circuit_states, target_states):
     """Computes fitness using state fidelity and phase differences."""
     fitness = 0
     for circuit_state, target_state in zip(circuit_states, target_states):
-        #fidelity = state_fidelity(circuit_state, target_state)
-        fidelity = phase_sensitive_fidelity(circuit_state, target_state)
+        fidelity = state_fidelity(circuit_state, target_state)
+        #fidelity = phase_sensitive_fidelity(circuit_state, target_state)
         fitness += fidelity  # Combine fitness based on fidelity
     fitness /= len(target_states)  # Normalise fitness to [0, 1]
     return fitness

@@ -5,22 +5,22 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import simple_optimiser
-import simple_optimiser_noisy
+#import simple_optimiser_noisy
 #import moea_optimiser
 #import moea_optimiser_noisy
 
-# Mutation Parameters
-parameter_mutation_rate=0.2
-gate_mutation_rate=0.3
-layer_mutation_rate=0.2
-max_parameter_mutation=0.2
-layer_deletion_rate=0.05
-
 # Simulation Parameters
 population=20
-elitism_number = population // 3
 qubits=3
 initial_circuit_depth=10
+
+# Mutation Parameters
+elitism_number = population // 3 # 3
+parameter_mutation_rate=0.2 # 0.2
+gate_mutation_rate=0.4 # 0.4
+layer_mutation_rate=0.3 #0.3
+max_parameter_mutation=0.3 # 0.3
+layer_deletion_rate=0.05 # 0.05
 
 def plot_iteration_results(timestamp, algorithm_type, ea_max, ea_avg, random_max, random_avg, x_values):
     plt.clf()
@@ -64,6 +64,8 @@ def execute_optimisation(timestamp, algorithm_type, mode, population, qubits, in
     ea_max_fitnesses, ea_avg_fitnesses = [], []
     max_random_fitness = 0  # Track overall max random fitness
     chromosomes = algorithm_type.initialize_chromosomes(population, qubits, initial_circuit_depth)
+
+    target_states = algorithm_type.get_qft_target_states(qubits)
     
     with open(log_filepath, "w") as log_file:
         log_file.write("Time/Iteration,EA Max Fitness,EA Avg Fitness,Random Max Overall Fitness,Random Avg Fitness\n")
@@ -71,13 +73,13 @@ def execute_optimisation(timestamp, algorithm_type, mode, population, qubits, in
         if mode == "iteration":
             x_values = list(range(iterations))
             for i in x_values:
-                random_max_fitness, random_avg_fitness = algorithm_type.evaluate_random_circuits(population, 1, qubits, initial_circuit_depth)
+                random_max_fitness, random_avg_fitness = algorithm_type.evaluate_random_circuits(population, 1, qubits, initial_circuit_depth, target_states)
                 max_random_fitness = max(max_random_fitness, random_max_fitness)
                 random_max_fitnesses.append(max_random_fitness)
                 random_avg_fitnesses.append(random_avg_fitness)
                 
                 circuits = algorithm_type.get_circuits(chromosomes)
-                fitnesses = algorithm_type.get_circuit_fitnesses(circuits, qubits)
+                fitnesses = algorithm_type.get_circuit_fitnesses(target_states, circuits, qubits)
                 max_fitness, avg_fitness = max(fitnesses), sum(fitnesses) / len(fitnesses)
                 ea_max_fitnesses.append(max_fitness)
                 ea_avg_fitnesses.append(avg_fitness)
@@ -105,7 +107,7 @@ def execute_optimisation(timestamp, algorithm_type, mode, population, qubits, in
             # Run random generator for half the time
             while elapsed_time < half_runtime:
                 elapsed_time = time.time() - start_time
-                random_max_fitness, random_avg_fitness = algorithm_type.evaluate_random_circuits(population, 1, qubits, initial_circuit_depth)
+                random_max_fitness, random_avg_fitness = algorithm_type.evaluate_random_circuits(population, 1, qubits, initial_circuit_depth, target_states)
                 max_random_fitness = max(max_random_fitness, random_max_fitness)
                 
                 if elapsed_time >= (log_interval * values_logged_random):
@@ -121,7 +123,7 @@ def execute_optimisation(timestamp, algorithm_type, mode, population, qubits, in
             while elapsed_time < half_runtime:
                 elapsed_time = time.time() - ea_start_time
                 circuits = algorithm_type.get_circuits(chromosomes)
-                fitnesses = algorithm_type.get_circuit_fitnesses(circuits, qubits)
+                fitnesses = algorithm_type.get_circuit_fitnesses(target_states, circuits, qubits)
                 max_fitness, avg_fitness = max(fitnesses), sum(fitnesses) / len(fitnesses)
                 
                 if elapsed_time >= (log_interval * values_logged_ea):
@@ -139,5 +141,5 @@ def execute_optimisation(timestamp, algorithm_type, mode, population, qubits, in
 
 if __name__ == "__main__":
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
-    execute_optimisation(timestamp, simple_optimiser, mode="iteration",population=population, elitism_number=elitism_number, qubits=qubits, initial_circuit_depth=initial_circuit_depth, iterations=1000)
-    execute_optimisation(timestamp, simple_optimiser, mode="timed", population=population, elitism_number=elitism_number, qubits=qubits, initial_circuit_depth=initial_circuit_depth, runtime_minutes=10)
+    execute_optimisation(timestamp, simple_optimiser, mode="iteration",population=population, elitism_number=elitism_number, qubits=qubits, initial_circuit_depth=initial_circuit_depth, iterations=1)
+    #execute_optimisation(timestamp, simple_optimiser, mode="timed", population=population, elitism_number=elitism_number, qubits=qubits, initial_circuit_depth=initial_circuit_depth, runtime_minutes=1/3)
