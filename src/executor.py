@@ -24,11 +24,11 @@ initial_circuit_depth = 10
 
 # Mutation Parameters
 elitism_number = population // 3      # 3
-parameter_mutation_rate = 0.1         # 0.1
-gate_mutation_rate = 0.3              # 0.3
-layer_mutation_rate = 0.2             # 0.2
-max_parameter_mutation = 0.2          # 0.2
-layer_deletion_rate = 0.03            # 0.03
+parameter_mutation_rate = 0.1           # 0.1
+gate_mutation_rate = 0.3                # 0.3
+layer_mutation_rate = 0.2               # 0.2
+max_parameter_mutation = 0.2            # 0.2
+layer_deletion_rate = 0.03              # 0.03
 
 # Random Baseline Parameters
 BASELINE_ITERATIONS = 20000
@@ -142,8 +142,9 @@ def execute_optimisation(timestamp, algorithm_type, iterations, n_runs=10):
     # Ensure we have a precomputed random baseline.
     baseline_max, baseline_avg = ensure_random_baseline(algorithm_type)
     
-    all_ea_max = []
-    all_ea_avg = []
+    all_ea_max = []  # List to store completed runs' max fitness histories.
+    all_ea_avg = []  # List to store completed runs' average fitness histories.
+    
     for run in range(n_runs):
         seed_value = int(time.time()) + run
         random.seed(seed_value)
@@ -168,40 +169,71 @@ def execute_optimisation(timestamp, algorithm_type, iterations, n_runs=10):
                 run_ea_avg.extend([avg_fitness] * remaining)
                 break
             
+            # Update intermediate plot every 500 iterations (using human‐readable iteration count)
+            if (i + 1) % 500 == 0:
+                # Compute the combined average over all completed runs and the current run (up to iteration i)
+                combined_ea_max = []
+                combined_ea_avg = []
+                # count = number of completed runs + current (partial) run
+                count = len(all_ea_max) + 1  
+                for j in range(i + 1):
+                    sum_max = sum(run_data[j] for run_data in all_ea_max) + run_ea_max[j]
+                    sum_avg = sum(run_data[j] for run_data in all_ea_avg) + run_ea_avg[j]
+                    combined_ea_max.append(sum_max / count)
+                    combined_ea_avg.append(sum_avg / count)
+                x_values_intermediate = list(range(i + 1))
+                plot_iteration_results(timestamp, algorithm_type, combined_ea_max, combined_ea_avg,
+                                       baseline_max[:i+1], baseline_avg[:i+1], x_values_intermediate)
+                print(f"Intermediate plot updated at run {run}, iteration {i+1}")
             
+            # Apply the appropriate genetic operators.
             if algorithm_type == simple_optimiser:
-                #Random Parents + Elitism
-                chromosomes = algorithm_type.apply_genetic_operators(chromosomes, fitnesses, elitism_number, parameter_mutation_rate, gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate)
+                # Random Parents + Elitism
+                chromosomes = algorithm_type.apply_genetic_operators(
+                    chromosomes, fitnesses, elitism_number, parameter_mutation_rate,
+                    gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate)
             
             elif algorithm_type == simple_optimiser_fitness_proportionate:
-                #Fitness Proportional
-                chromosomes = algorithm_type.apply_genetic_operators(chromosomes, fitnesses, parameter_mutation_rate, gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate)
+                # Fitness Proportional
+                chromosomes = algorithm_type.apply_genetic_operators(
+                    chromosomes, fitnesses, parameter_mutation_rate,
+                    gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate)
             
             elif algorithm_type == simple_optimiser_fitness_proportionate_elitist:
-                #Fitness Proportional + Elitism
-                chromosomes = algorithm_type.apply_genetic_operators(chromosomes, fitnesses, elitism_number, parameter_mutation_rate, gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate)
-
+                # Fitness Proportional + Elitism
+                chromosomes = algorithm_type.apply_genetic_operators(
+                    chromosomes, fitnesses, elitism_number, parameter_mutation_rate,
+                    gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate)
+            
             elif algorithm_type == simple_optimiser_tournament:
-                #Tournament
-                chromosomes = algorithm_type.apply_genetic_operators(chromosomes, fitnesses, parameter_mutation_rate, gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate, tournament_size=3)
-
+                # Tournament
+                chromosomes = algorithm_type.apply_genetic_operators(
+                    chromosomes, fitnesses, parameter_mutation_rate,
+                    gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate, tournament_size=3)
+            
             elif algorithm_type == simple_optimiser_tournament_elitist:
-                #Tournament + Elitism
-                chromosomes = algorithm_type.apply_genetic_operators(chromosomes, fitnesses, elitism_number, parameter_mutation_rate, gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate, tournament_size=3)
-
+                # Tournament + Elitism
+                chromosomes = algorithm_type.apply_genetic_operators(
+                    chromosomes, fitnesses, elitism_number, parameter_mutation_rate,
+                    gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate, tournament_size=3)
+            
             elif algorithm_type == simple_optimiser_rank:
-                #Rank
-                chromosomes = algorithm_type.apply_genetic_operators(chromosomes, fitnesses, parameter_mutation_rate, gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate)
-
+                # Rank
+                chromosomes = algorithm_type.apply_genetic_operators(
+                    chromosomes, fitnesses, parameter_mutation_rate,
+                    gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate)
+            
             elif algorithm_type == simple_optimiser_rank_elitist:
-                #Rank + Elitism
-                chromosomes = algorithm_type.apply_genetic_operators(chromosomes, fitnesses, elitism_number, parameter_mutation_rate, gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate)
-
-
+                # Rank + Elitism
+                chromosomes = algorithm_type.apply_genetic_operators(
+                    chromosomes, fitnesses, elitism_number, parameter_mutation_rate,
+                    gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate)
+        
+        # End of current run – store its full history.
         all_ea_max.append(run_ea_max)
         all_ea_avg.append(run_ea_avg)
     
-    # Average the EA results over the n_runs.
+    # Average the EA results over all runs.
     avg_ea_max = [sum(run[i] for run in all_ea_max) / n_runs for i in range(iterations)]
     avg_ea_avg = [sum(run[i] for run in all_ea_avg) / n_runs for i in range(iterations)]
     x_values = list(range(iterations))
@@ -212,19 +244,21 @@ def execute_optimisation(timestamp, algorithm_type, iterations, n_runs=10):
         for i in range(iterations):
             log_file.write(f"{i},{avg_ea_max[i]:.6f},{avg_ea_avg[i]:.6f},{baseline_max[i]:.6f},{baseline_avg[i]:.6f}\n")
     
-    plot_iteration_results(timestamp, algorithm_type, avg_ea_max, avg_ea_avg, baseline_max[:iterations], baseline_avg[:iterations], x_values)
+    plot_iteration_results(timestamp, algorithm_type, avg_ea_max, avg_ea_avg,
+                           baseline_max[:iterations], baseline_avg[:iterations], x_values)
     print("Optimisation complete. Averaged results saved in:", log_filepath)
 
-# ================================s
+# ================================
 # Main Execution
 # ================================
 if __name__ == "__main__":
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
-    # For example, run EA for 20,000 iterations (should be <= BASELINE_ITERATIONS)
-    #execute_optimisation(timestamp, simple_optimiser, iterations=1000, n_runs=2)
-    #execute_optimisation(timestamp, simple_optimiser_fitness_proportionate, iterations=1000, n_runs=2)
-    #execute_optimisation(timestamp, simple_optimiser_fitness_proportionate_elitist, iterations=1000, n_runs=2)
-    #execute_optimisation(timestamp, simple_optimiser_tournament, iterations=1000, n_runs=2)
-    #execute_optimisation(timestamp, simple_optimiser_tournament_elitist, iterations=1000, n_runs=2)
-    #execute_optimisation(timestamp, simple_optimiser_rank, iterations=1000, n_runs=2)
-    execute_optimisation(timestamp, simple_optimiser_rank_elitist, iterations=10000, n_runs=2)
+    # For example, run EA for 10,000 iterations (should be <= BASELINE_ITERATIONS)
+    # Uncomment the desired algorithm execution line(s)
+    # execute_optimisation(timestamp, simple_optimiser, iterations=1000, n_runs=2)
+    # execute_optimisation(timestamp, simple_optimiser_fitness_proportionate, iterations=1000, n_runs=2)
+    # execute_optimisation(timestamp, simple_optimiser_fitness_proportionate_elitist, iterations=1000, n_runs=2)
+    # execute_optimisation(timestamp, simple_optimiser_tournament, iterations=1000, n_runs=2)
+    # execute_optimisation(timestamp, simple_optimiser_tournament_elitist, iterations=1000, n_runs=2)
+    # execute_optimisation(timestamp, simple_optimiser_rank, iterations=1000, n_runs=2)
+    execute_optimisation(timestamp, simple_optimiser_rank_elitist, iterations=20000, n_runs=3)
