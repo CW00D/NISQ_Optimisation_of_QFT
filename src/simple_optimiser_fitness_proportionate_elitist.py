@@ -20,6 +20,7 @@ The code is organized into:
 # ---------------------------
 import re
 import copy
+import random
 
 # ---------------------------
 # Third-Party Imports
@@ -122,6 +123,23 @@ def build_gate_map(circuit):
         "ryy": lambda q1, q2, theta: circuit.ryy(theta, q1, q2),
         "rzz": lambda q1, q2, theta: circuit.rzz(theta, q1, q2),
     }
+
+
+def roulette_wheel_selection(chromosomes, fitnesses):
+    """
+    Select one chromosome from the population using linear fitness-proportionate selection.
+    If total fitness is zero, it falls back to uniform random selection.
+    """
+    total_fitness = sum(fitnesses)
+    if total_fitness == 0:
+        return random.choice(chromosomes)
+    pick = random.uniform(0, total_fitness)
+    current = 0
+    for chrom, fit in zip(chromosomes, fitnesses):
+        current += fit
+        if current >= pick:
+            return copy.deepcopy(chrom)
+    return copy.deepcopy(chromosomes[-1])
 
 
 # ---------------------------
@@ -302,39 +320,35 @@ def phase_sensitive_fidelity(output_state, target_state):
 # ---------------------------
 # Genetic Operators
 # ---------------------------
-def apply_genetic_operators(chromosomes, fitnesses, parent_chromosomes, parameter_mutation_rate,
-                            gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate):
+def apply_genetic_operators(chromosomes, fitnesses, elite_count, parameter_mutation_rate, gate_mutation_rate,
+                                       layer_mutation_rate, max_parameter_mutation, layer_deletion_rate):
     """
-    Apply genetic operators (elitism, crossover, mutation) to produce a new population.
-
+    Generates a new population by preserving a designated number of elite individuals and
+    using fitness-proportionate (roulette-wheel) selection to generate the rest.
+    
     Parameters:
-        chromosomes (list): Current population of chromosomes.
-        fitnesses (list): Fitness values corresponding to each chromosome.
-        parent_chromosomes (int): Number of top chromosomes to preserve (elitism).
-        parameter_mutation_rate (float): Mutation rate for gate parameters.
-        gate_mutation_rate (float): Mutation rate for gate type.
-        layer_mutation_rate (float): Probability of adding a new layer.
-        max_parameter_mutation (float): Maximum mutation factor for parameters.
-        layer_deletion_rate (float): Probability of deleting an entire layer.
-
-    Returns:
-        list: New population of chromosomes.
+        elite_count (int): The number of top individuals to preserve unchanged.
     """
+    # Determine elites (using the highest fitness values)
     sorted_indices = sorted(range(len(fitnesses)), key=lambda i: fitnesses[i], reverse=True)
-    elites = [copy.deepcopy(chromosomes[idx]) for idx in sorted_indices[:parent_chromosomes]]
-    top_indices = sorted_indices[:parent_chromosomes]
-    bottom_indices = sorted_indices[-(len(chromosomes) - parent_chromosomes):]
-
-    child_chromosomes = []
-    while len(child_chromosomes) < len(bottom_indices):
-        parent_1_index, parent_2_index = np.random.choice(top_indices, 2, replace=False)
-        child_1, child_2 = crossover(chromosomes[parent_1_index], chromosomes[parent_2_index])
-        child_chromosomes.append(mutate_chromosome(child_1, parameter_mutation_rate, gate_mutation_rate,
-                                                   layer_mutation_rate, max_parameter_mutation, layer_deletion_rate))
-        if len(child_chromosomes) < len(bottom_indices):
-            child_chromosomes.append(mutate_chromosome(child_2, parameter_mutation_rate, gate_mutation_rate,
-                                                       layer_mutation_rate, max_parameter_mutation, layer_deletion_rate))
-    return elites + child_chromosomes
+    elites = [copy.deepcopy(chromosomes[i]) for i in sorted_indices[:elite_count]]
+    
+    # Generate the remaining individuals using roulette-wheel selection.
+    new_population = []
+    remaining_count = len(chromosomes) - elite_count
+    while len(new_population) < remaining_count:
+        parent1 = roulette_wheel_selection(chromosomes, fitnesses)
+        parent2 = roulette_wheel_selection(chromosomes, fitnesses)
+        child1, child2 = crossover(parent1, parent2)
+        child1 = mutate_chromosome(child1, parameter_mutation_rate, gate_mutation_rate,
+                                   layer_mutation_rate, max_parameter_mutation, layer_deletion_rate)
+        child2 = mutate_chromosome(child2, parameter_mutation_rate, gate_mutation_rate,
+                                   layer_mutation_rate, max_parameter_mutation, layer_deletion_rate)
+        new_population.append(child1)
+        if len(new_population) < remaining_count:
+            new_population.append(child2)
+    
+    return elites + new_population
 
 
 def crossover(parent_1, parent_2):
@@ -354,8 +368,7 @@ def crossover(parent_1, parent_2):
     return child_1, child_2
 
 
-def mutate_chromosome(chromosome, parameter_mutation_rate, gate_mutation_rate,
-                      layer_mutation_rate, max_parameter_mutation, layer_deletion_rate):
+def mutate_chromosome(chromosome, parameter_mutation_rate, gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate):
     """
     Mutate a single chromosome by modifying gate types, parameters, or layers.
 
@@ -366,7 +379,7 @@ def mutate_chromosome(chromosome, parameter_mutation_rate, gate_mutation_rate,
         layer_mutation_rate (float): Probability of adding a new layer.
         max_parameter_mutation (float): Maximum factor for parameter mutation.
         layer_deletion_rate (float): Probability of deleting an entire layer.
-
+        
     Returns:
         list: Mutated chromosome.
     """

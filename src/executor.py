@@ -4,10 +4,16 @@ from datetime import datetime
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import simple_optimiser
 from qiskit.quantum_info import Statevector
 import random
 import numpy as np
+import simple_optimiser
+import simple_optimiser_fitness_proportionate
+import simple_optimiser_fitness_proportionate_elitist
+import simple_optimiser_tournament
+import simple_optimiser_tournament_elitist
+import simple_optimiser_rank
+import simple_optimiser_rank_elitist
 
 # ================================
 # Execution Parameters (Global)
@@ -103,7 +109,7 @@ def ensure_random_baseline(algorithm_type, baseline_iterations=BASELINE_ITERATIO
 # ================================
 # Plotting Logic
 # ================================
-def plot_iteration_results(timestamp, ea_max, ea_avg, random_max, random_avg, x_values):
+def plot_iteration_results(timestamp, algorithm_type, ea_max, ea_avg, random_max, random_avg, x_values):
     plt.clf()
     plt.plot(x_values, ea_max, label="EA Max Fitness", color="blue")
     plt.plot(x_values, ea_avg, label="EA Avg Fitness", color="blue", linestyle="--")
@@ -115,7 +121,7 @@ def plot_iteration_results(timestamp, ea_max, ea_avg, random_max, random_avg, x_
     plt.ylim(0, 1)
     plt.title("Fitness Over Iterations (Averaged over EA runs)")
     plt.grid(True)
-    out_dir = f"Experiment Results/Charts/{simple_optimiser.__name__.capitalize()}"
+    out_dir = f"Experiment Results/Charts/{algorithm_type.__name__.capitalize()}"
     os.makedirs(out_dir, exist_ok=True)
     plt.savefig(f"{out_dir}/{timestamp}.png")
     plt.close()
@@ -162,12 +168,36 @@ def execute_optimisation(timestamp, algorithm_type, iterations, n_runs=10):
                 run_ea_avg.extend([avg_fitness] * remaining)
                 break
             
-            chromosomes = algorithm_type.apply_genetic_operators(
-                chromosomes, fitnesses, elitism_number,
-                parameter_mutation_rate, gate_mutation_rate,
-                layer_mutation_rate, max_parameter_mutation,
-                layer_deletion_rate
-            )
+            
+            if algorithm_type == simple_optimiser:
+                #Random Parents + Elitism
+                chromosomes = algorithm_type.apply_genetic_operators(chromosomes, fitnesses, elitism_number, parameter_mutation_rate, gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate)
+            
+            elif algorithm_type == simple_optimiser_fitness_proportionate:
+                #Fitness Proportional
+                chromosomes = algorithm_type.apply_genetic_operators(chromosomes, fitnesses, parameter_mutation_rate, gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate)
+            
+            elif algorithm_type == simple_optimiser_fitness_proportionate_elitist:
+                #Fitness Proportional + Elitism
+                chromosomes = algorithm_type.apply_genetic_operators(chromosomes, fitnesses, elitism_number, parameter_mutation_rate, gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate)
+
+            elif algorithm_type == simple_optimiser_tournament:
+                #Tournament
+                chromosomes = algorithm_type.apply_genetic_operators(chromosomes, fitnesses, parameter_mutation_rate, gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate, tournament_size=3)
+
+            elif algorithm_type == simple_optimiser_tournament_elitist:
+                #Tournament + Elitism
+                chromosomes = algorithm_type.apply_genetic_operators(chromosomes, fitnesses, elitism_number, parameter_mutation_rate, gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate, tournament_size=3)
+
+            elif algorithm_type == simple_optimiser_rank:
+                #Rank
+                chromosomes = algorithm_type.apply_genetic_operators(chromosomes, fitnesses, parameter_mutation_rate, gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate)
+
+            elif algorithm_type == simple_optimiser_rank_elitist:
+                #Rank + Elitism
+                chromosomes = algorithm_type.apply_genetic_operators(chromosomes, fitnesses, elitism_number, parameter_mutation_rate, gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate)
+
+
         all_ea_max.append(run_ea_max)
         all_ea_avg.append(run_ea_avg)
     
@@ -182,13 +212,19 @@ def execute_optimisation(timestamp, algorithm_type, iterations, n_runs=10):
         for i in range(iterations):
             log_file.write(f"{i},{avg_ea_max[i]:.6f},{avg_ea_avg[i]:.6f},{baseline_max[i]:.6f},{baseline_avg[i]:.6f}\n")
     
-    plot_iteration_results(timestamp, avg_ea_max, avg_ea_avg, baseline_max[:iterations], baseline_avg[:iterations], x_values)
+    plot_iteration_results(timestamp, algorithm_type, avg_ea_max, avg_ea_avg, baseline_max[:iterations], baseline_avg[:iterations], x_values)
     print("Optimisation complete. Averaged results saved in:", log_filepath)
 
-# ================================
+# ================================s
 # Main Execution
 # ================================
 if __name__ == "__main__":
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
     # For example, run EA for 20,000 iterations (should be <= BASELINE_ITERATIONS)
-    execute_optimisation(timestamp, simple_optimiser, iterations=100, n_runs=1)
+    #execute_optimisation(timestamp, simple_optimiser, iterations=1000, n_runs=2)
+    #execute_optimisation(timestamp, simple_optimiser_fitness_proportionate, iterations=1000, n_runs=2)
+    #execute_optimisation(timestamp, simple_optimiser_fitness_proportionate_elitist, iterations=1000, n_runs=2)
+    #execute_optimisation(timestamp, simple_optimiser_tournament, iterations=1000, n_runs=2)
+    #execute_optimisation(timestamp, simple_optimiser_tournament_elitist, iterations=1000, n_runs=2)
+    #execute_optimisation(timestamp, simple_optimiser_rank, iterations=1000, n_runs=2)
+    execute_optimisation(timestamp, simple_optimiser_rank_elitist, iterations=10000, n_runs=2)

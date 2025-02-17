@@ -20,6 +20,7 @@ The code is organized into:
 # ---------------------------
 import re
 import copy
+import random
 
 # ---------------------------
 # Third-Party Imports
@@ -122,6 +123,29 @@ def build_gate_map(circuit):
         "ryy": lambda q1, q2, theta: circuit.ryy(theta, q1, q2),
         "rzz": lambda q1, q2, theta: circuit.rzz(theta, q1, q2),
     }
+
+
+def tournament_selection(chromosomes, fitnesses, tournament_size=2):
+    """
+    Selects one chromosome using tournament selection.
+    A subset of 'tournament_size' individuals is chosen at random,
+    and the one with the highest fitness is selected.
+
+    If multiple individuals share the same best fitness, one is chosen at random.
+    """
+    selected_indices = np.random.choice(len(chromosomes), tournament_size, replace=False)
+    best_index = None
+    best_fitness = -float("inf")
+    best_candidates = []
+    for idx in selected_indices:
+        if fitnesses[idx] > best_fitness:
+            best_fitness = fitnesses[idx]
+            best_candidates = [idx]
+        elif abs(fitnesses[idx] - best_fitness) < 1e-12:
+            # If there's a tie, keep track of multiple
+            best_candidates.append(idx)
+    winner_index = random.choice(best_candidates)
+    return copy.deepcopy(chromosomes[winner_index])
 
 
 # ---------------------------
@@ -302,39 +326,39 @@ def phase_sensitive_fidelity(output_state, target_state):
 # ---------------------------
 # Genetic Operators
 # ---------------------------
-def apply_genetic_operators(chromosomes, fitnesses, parent_chromosomes, parameter_mutation_rate,
-                            gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate):
+def apply_genetic_operators(
+    chromosomes, fitnesses, elite_count, parameter_mutation_rate, gate_mutation_rate,
+    layer_mutation_rate, max_parameter_mutation, layer_deletion_rate,
+    tournament_size=2):
     """
-    Apply genetic operators (elitism, crossover, mutation) to produce a new population.
-
-    Parameters:
-        chromosomes (list): Current population of chromosomes.
-        fitnesses (list): Fitness values corresponding to each chromosome.
-        parent_chromosomes (int): Number of top chromosomes to preserve (elitism).
-        parameter_mutation_rate (float): Mutation rate for gate parameters.
-        gate_mutation_rate (float): Mutation rate for gate type.
-        layer_mutation_rate (float): Probability of adding a new layer.
-        max_parameter_mutation (float): Maximum mutation factor for parameters.
-        layer_deletion_rate (float): Probability of deleting an entire layer.
-
-    Returns:
-        list: New population of chromosomes.
+    Creates a new population by preserving 'elite_count' top individuals,
+    then filling the remainder with tournament selection.
     """
+    # Sort by fitness (descending)
     sorted_indices = sorted(range(len(fitnesses)), key=lambda i: fitnesses[i], reverse=True)
-    elites = [copy.deepcopy(chromosomes[idx]) for idx in sorted_indices[:parent_chromosomes]]
-    top_indices = sorted_indices[:parent_chromosomes]
-    bottom_indices = sorted_indices[-(len(chromosomes) - parent_chromosomes):]
-
-    child_chromosomes = []
-    while len(child_chromosomes) < len(bottom_indices):
-        parent_1_index, parent_2_index = np.random.choice(top_indices, 2, replace=False)
-        child_1, child_2 = crossover(chromosomes[parent_1_index], chromosomes[parent_2_index])
-        child_chromosomes.append(mutate_chromosome(child_1, parameter_mutation_rate, gate_mutation_rate,
-                                                   layer_mutation_rate, max_parameter_mutation, layer_deletion_rate))
-        if len(child_chromosomes) < len(bottom_indices):
-            child_chromosomes.append(mutate_chromosome(child_2, parameter_mutation_rate, gate_mutation_rate,
-                                                       layer_mutation_rate, max_parameter_mutation, layer_deletion_rate))
-    return elites + child_chromosomes
+    elites = [copy.deepcopy(chromosomes[idx]) for idx in sorted_indices[:elite_count]]
+    
+    new_population = []
+    remaining = len(chromosomes) - elite_count
+    while len(new_population) < remaining:
+        parent1 = tournament_selection(chromosomes, fitnesses, tournament_size)
+        parent2 = tournament_selection(chromosomes, fitnesses, tournament_size)
+        child1, child2 = crossover(parent1, parent2)
+        
+        child1 = mutate_chromosome(
+            child1, parameter_mutation_rate, gate_mutation_rate,
+            layer_mutation_rate, max_parameter_mutation, layer_deletion_rate
+        )
+        child2 = mutate_chromosome(
+            child2, parameter_mutation_rate, gate_mutation_rate,
+            layer_mutation_rate, max_parameter_mutation, layer_deletion_rate
+        )
+        
+        new_population.append(child1)
+        if len(new_population) < remaining:
+            new_population.append(child2)
+    
+    return elites + new_population
 
 
 def crossover(parent_1, parent_2):

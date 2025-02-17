@@ -20,6 +20,7 @@ The code is organized into:
 # ---------------------------
 import re
 import copy
+import random
 
 # ---------------------------
 # Third-Party Imports
@@ -122,6 +123,41 @@ def build_gate_map(circuit):
         "ryy": lambda q1, q2, theta: circuit.ryy(theta, q1, q2),
         "rzz": lambda q1, q2, theta: circuit.rzz(theta, q1, q2),
     }
+
+
+def rank_selection(chromosomes, fitnesses):
+    """
+    Selects one chromosome using linear rank selection.
+    The highest fitness chromosome has rank 'pop_size',
+    the lowest has rank 1, and selection probability is proportional to rank.
+    """
+    pop_size = len(chromosomes)
+    # Sort indices by fitness ascending
+    sorted_indices = sorted(range(pop_size), key=lambda i: fitnesses[i])
+    
+    # ranks[i] = the rank of the chromosome sorted_indices[i]
+    # highest fitness -> rank = pop_size, lowest fitness -> rank = 1
+    ranks = [i+1 for i in range(pop_size)]  # ranks from 1..pop_size
+    
+    # Build a list of (chromosome, rank)
+    # sorted_indices[0] is the worst, has rank=1
+    # sorted_indices[-1] is the best, has rank=pop_size
+    # We want the best to have the highest rank
+    chrom_and_rank = []
+    for rank_idx, idx in enumerate(sorted_indices):
+        chrom_and_rank.append((idx, ranks[rank_idx]))
+    
+    total_rank = sum(ranks)
+    pick = random.uniform(0, total_rank)
+    current = 0
+    
+    for idx, rank_val in chrom_and_rank:
+        current += rank_val
+        if current >= pick:
+            return copy.deepcopy(chromosomes[idx])
+    
+    # Fallback (rarely triggered due to float rounding):
+    return copy.deepcopy(chromosomes[sorted_indices[-1]])
 
 
 # ---------------------------
@@ -302,39 +338,40 @@ def phase_sensitive_fidelity(output_state, target_state):
 # ---------------------------
 # Genetic Operators
 # ---------------------------
-def apply_genetic_operators(chromosomes, fitnesses, parent_chromosomes, parameter_mutation_rate,
-                            gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate):
+def apply_genetic_operators(
+    chromosomes, fitnesses, elite_count, parameter_mutation_rate, gate_mutation_rate,
+    layer_mutation_rate, max_parameter_mutation, layer_deletion_rate
+):
     """
-    Apply genetic operators (elitism, crossover, mutation) to produce a new population.
-
-    Parameters:
-        chromosomes (list): Current population of chromosomes.
-        fitnesses (list): Fitness values corresponding to each chromosome.
-        parent_chromosomes (int): Number of top chromosomes to preserve (elitism).
-        parameter_mutation_rate (float): Mutation rate for gate parameters.
-        gate_mutation_rate (float): Mutation rate for gate type.
-        layer_mutation_rate (float): Probability of adding a new layer.
-        max_parameter_mutation (float): Maximum mutation factor for parameters.
-        layer_deletion_rate (float): Probability of deleting an entire layer.
-
-    Returns:
-        list: New population of chromosomes.
+    Creates a new population by preserving 'elite_count' top individuals,
+    then using rank selection to fill the rest.
     """
+    # Identify elites
     sorted_indices = sorted(range(len(fitnesses)), key=lambda i: fitnesses[i], reverse=True)
-    elites = [copy.deepcopy(chromosomes[idx]) for idx in sorted_indices[:parent_chromosomes]]
-    top_indices = sorted_indices[:parent_chromosomes]
-    bottom_indices = sorted_indices[-(len(chromosomes) - parent_chromosomes):]
-
-    child_chromosomes = []
-    while len(child_chromosomes) < len(bottom_indices):
-        parent_1_index, parent_2_index = np.random.choice(top_indices, 2, replace=False)
-        child_1, child_2 = crossover(chromosomes[parent_1_index], chromosomes[parent_2_index])
-        child_chromosomes.append(mutate_chromosome(child_1, parameter_mutation_rate, gate_mutation_rate,
-                                                   layer_mutation_rate, max_parameter_mutation, layer_deletion_rate))
-        if len(child_chromosomes) < len(bottom_indices):
-            child_chromosomes.append(mutate_chromosome(child_2, parameter_mutation_rate, gate_mutation_rate,
-                                                       layer_mutation_rate, max_parameter_mutation, layer_deletion_rate))
-    return elites + child_chromosomes
+    elites = [copy.deepcopy(chromosomes[i]) for i in sorted_indices[:elite_count]]
+    
+    # Generate the remaining population with rank selection
+    new_population = []
+    remaining = len(chromosomes) - elite_count
+    while len(new_population) < remaining:
+        parent1 = rank_selection(chromosomes, fitnesses)
+        parent2 = rank_selection(chromosomes, fitnesses)
+        child1, child2 = crossover(parent1, parent2)
+        
+        child1 = mutate_chromosome(
+            child1, parameter_mutation_rate, gate_mutation_rate,
+            layer_mutation_rate, max_parameter_mutation, layer_deletion_rate
+        )
+        child2 = mutate_chromosome(
+            child2, parameter_mutation_rate, gate_mutation_rate,
+            layer_mutation_rate, max_parameter_mutation, layer_deletion_rate
+        )
+        
+        new_population.append(child1)
+        if len(new_population) < remaining:
+            new_population.append(child2)
+    
+    return elites + new_population
 
 
 def crossover(parent_1, parent_2):
