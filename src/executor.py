@@ -17,7 +17,7 @@ qubits = 3
 initial_circuit_depth = 10
 
 # Mutation Parameters
-elitism_number = population // 3    # 3
+elitism_number = population // 3      # 3
 parameter_mutation_rate = 0.1         # 0.1
 gate_mutation_rate = 0.3              # 0.3
 layer_mutation_rate = 0.2             # 0.2
@@ -101,7 +101,7 @@ def ensure_random_baseline(algorithm_type, baseline_iterations=BASELINE_ITERATIO
     return baseline_max, baseline_avg
 
 # ================================
-# Plotting Logic (Iteration Mode Only)
+# Plotting Logic
 # ================================
 def plot_iteration_results(timestamp, ea_max, ea_avg, random_max, random_avg, x_values):
     plt.clf()
@@ -115,17 +115,17 @@ def plot_iteration_results(timestamp, ea_max, ea_avg, random_max, random_avg, x_
     plt.ylim(0, 1)
     plt.title("Fitness Over Iterations (Averaged over EA runs)")
     plt.grid(True)
-    out_dir = f"Experiment Results/Charts/{simple_optimiser.__name__.capitalize()}/Iteration_Execution"
+    out_dir = f"Experiment Results/Charts/{simple_optimiser.__name__.capitalize()}"
     os.makedirs(out_dir, exist_ok=True)
     plt.savefig(f"{out_dir}/{timestamp}.png")
     plt.close()
 
 # ================================
-# EA Execution (Iteration Mode Only)
+# EA Execution
 # ================================
 def execute_optimisation(timestamp, algorithm_type, iterations, n_runs=10):
     # Create folder for log files.
-    results_folder = f"Experiment Results/Logs/{algorithm_type.__name__.capitalize()}/Iteration_Execution"
+    results_folder = f"Experiment Results/Logs/{algorithm_type.__name__.capitalize()}"
     os.makedirs(results_folder, exist_ok=True)
     log_filepath = os.path.join(results_folder, f"{timestamp}.log")
     
@@ -191,4 +191,4 @@ def execute_optimisation(timestamp, algorithm_type, iterations, n_runs=10):
 if __name__ == "__main__":
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
     # For example, run EA for 20,000 iterations (should be <= BASELINE_ITERATIONS)
-    execute_optimisation(timestamp, simple_optimiser, iterations=20, n_runs=1)
+    execute_optimisation(timestamp, simple_optimiser, iterations=100, n_runs=1)
