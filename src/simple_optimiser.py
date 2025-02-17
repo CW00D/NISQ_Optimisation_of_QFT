@@ -66,10 +66,10 @@ def initialize_chromosomes(population, qubits, initial_circuit_depth):
         chromosomes.append(chromosome)
     return chromosomes
 
-def evaluate_random_circuits(population, iterations, qubits, initial_circuit_depth, target_states):
+def evaluate_random_circuits(population, iterations, qubits, initial_circuit_depth, initial_states, target_states):
     random_circuits = [[create_new_layer(qubits) for _ in range(initial_circuit_depth)] for _ in range(population*iterations)]
     circuits = get_circuits(random_circuits)
-    fitnesses = get_circuit_fitnesses(target_states, circuits, qubits)
+    fitnesses = get_circuit_fitnesses(target_states, circuits, initial_states)
     return max(fitnesses), sum(fitnesses)/len(fitnesses)
 
 def get_qft_target_states(qubits, simulator=SIMULATOR):
@@ -154,10 +154,9 @@ def get_circuits(circuit_chromosomes):
 
 # Fitness Function
 # -----------------------------------------------------
-def get_circuit_fitnesses(target_states, circuits, qubits, simulator=SIMULATOR):
+def get_circuit_fitnesses(target_states, circuits, initial_states, simulator=SIMULATOR):
     """Evaluate fitness of circuits based on similarity to QFT output phases."""
     fitnesses = []
-    initial_states = [Statevector.from_label(f"{i:0{qubits}b}") for i in range(2**qubits)]
 
     # Prepare all circuits for batch simulation
     batch_circuits = []
