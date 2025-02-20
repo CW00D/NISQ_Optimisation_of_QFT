@@ -55,6 +55,9 @@ PARAMETRISED_GATES = [
 SIMULATOR = AerSimulator(method='statevector')
 
 
+# Fitness Cache
+fitness_cache = {}
+
 # ---------------------------
 # Helper Functions
 # ---------------------------
@@ -160,6 +163,13 @@ def rank_selection(chromosomes, fitnesses):
     return copy.deepcopy(chromosomes[sorted_indices[-1]])
 
 
+def get_chromosome_key(chromosome):
+    """
+    Convert a chromosome (list of layers) into a hashable tuple-of-tuples.
+    """
+    return tuple(tuple(layer) for layer in chromosome)
+
+
 # ---------------------------
 # Initialization and Evaluation Functions
 # ---------------------------
@@ -263,34 +273,53 @@ def get_circuits(chromosome_list):
 # ---------------------------
 # Fitness Functions
 # ---------------------------
-def get_circuit_fitnesses(target_states, circuits, initial_states, simulator=SIMULATOR):
+def get_circuit_fitnesses(target_states, circuits, chromosomes, initial_states, simulator=SIMULATOR):
     """
-    Evaluate the fitness of each circuit based on similarity to the QFT target states.
-    The fitness of a circuit is computed by initializing it with every initial state and comparing
-    the resulting statevector to the corresponding target state via state fidelity.
+    Evaluate the fitness for each circuit (corresponding to the provided chromosomes).
+    For chromosomes that have been evaluated before, use the cached fitness.
+    
+    Parameters:
+        target_states (list): List of target statevectors.
+        circuits (list): List of QuantumCircuit objects.
+        chromosomes (list): List of chromosome representations corresponding to the circuits.
+        initial_states (list): List of initial state Statevectors.
+        simulator (AerSimulator): The Qiskit simulator.
+    
+    Returns:
+        list: Fitness values for each circuit.
     """
-    fitnesses = []
+    # Preallocate fitness list.
+    fitnesses = [None] * len(circuits)
+    # Prepare a batch for circuits that need evaluation.
     batch_circuits = []
-    # Build the batch of circuits once.
-    for circuit in circuits:
-        for state in initial_states:
-            new_circuit = QuantumCircuit(*circuit.qregs)
-            new_circuit.initialize(state)
-            new_circuit.compose(circuit, inplace=True)
-            new_circuit.save_statevector()
-            batch_circuits.append(new_circuit)
-    
-    # Run all circuits in one batch.
-    results = simulator.run(batch_circuits).result()
-    batch_size = len(batch_circuits)
-    output_states = [results.get_statevector(i) for i in range(batch_size)]
-    
-    # Compute fitnesses using a local variable for the group size.
+    batch_indices = []
     group_size = len(initial_states)
-    total_output = len(output_states)
-    for i in range(0, total_output, group_size):
-        circuit_states = output_states[i:i + group_size]
-        fitnesses.append(compute_phase_fitness(circuit_states, target_states))
+    
+    for i, circuit in enumerate(circuits):
+        key = get_chromosome_key(chromosomes[i])
+        if key in fitness_cache:
+            fitnesses[i] = fitness_cache[key]
+        else:
+            batch_indices.append(i)
+            for state in initial_states:
+                new_circuit = QuantumCircuit(*circuit.qregs)
+                new_circuit.initialize(state)
+                new_circuit.compose(circuit, inplace=True)
+                new_circuit.save_statevector()
+                batch_circuits.append(new_circuit)
+    
+    if batch_circuits:
+        results = simulator.run(batch_circuits).result()
+        output_states = [results.get_statevector(j) for j in range(len(batch_circuits))]
+        # For each chromosome that needed evaluation, compute its fitness.
+        for count, i in enumerate(batch_indices):
+            start = count * group_size
+            end = start + group_size
+            circuit_states = output_states[start:end]
+            fitness = compute_phase_fitness(circuit_states, target_states)
+            key = get_chromosome_key(chromosomes[i])
+            fitness_cache[key] = fitness
+            fitnesses[i] = fitness
     return fitnesses
 
 

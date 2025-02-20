@@ -151,7 +151,7 @@ def execute_optimisation(timestamp, algorithm_type, iterations, n_runs=10):
             if i % 100 == 0:
                 print(f"EA Run {run}, iteration {i}")
             circuits = algorithm_type.get_circuits(chromosomes)
-            fitnesses = algorithm_type.get_circuit_fitnesses(target_states, circuits, initial_states)
+            fitnesses = algorithm_type.get_circuit_fitnesses(target_states, circuits, chromosomes, initial_states)
             max_fitness = max(fitnesses)
             avg_fitness = sum(fitnesses) / len(fitnesses)
             run_ea_max.append(max_fitness)
@@ -257,4 +257,4 @@ if __name__ == "__main__":
     # execute_optimisation(timestamp, simple_optimiser_tournament, iterations=1000, n_runs=2)
     # execute_optimisation(timestamp, simple_optimiser_tournament_elitist, iterations=1000, n_runs=2)
     # execute_optimisation(timestamp, simple_optimiser_rank, iterations=1000, n_runs=2)
-    execute_optimisation(timestamp, simple_optimiser_rank_elitist, iterations=100, n_runs=3)
+    execute_optimisation(timestamp, simple_optimiser_rank_elitist, iterations=20000, n_runs=10)
