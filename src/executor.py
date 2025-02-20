@@ -18,7 +18,7 @@ import simple_optimiser_rank_elitist
 # ================================
 # Execution Parameters (Global)
 # ================================
-population = 20
+population = 100
 qubits = 3
 initial_circuit_depth = 10
 
@@ -171,10 +171,8 @@ def execute_optimisation(timestamp, algorithm_type, iterations, n_runs=10):
             
             # Update intermediate plot every 500 iterations (using human‐readable iteration count)
             if (i + 1) % 500 == 0:
-                # Compute the combined average over all completed runs and the current run (up to iteration i)
                 combined_ea_max = []
                 combined_ea_avg = []
-                # count = number of completed runs + current (partial) run
                 count = len(all_ea_max) + 1  
                 for j in range(i + 1):
                     sum_max = sum(run_data[j] for run_data in all_ea_max) + run_ea_max[j]
@@ -188,48 +186,46 @@ def execute_optimisation(timestamp, algorithm_type, iterations, n_runs=10):
             
             # Apply the appropriate genetic operators.
             if algorithm_type == simple_optimiser:
-                # Random Parents + Elitism
                 chromosomes = algorithm_type.apply_genetic_operators(
                     chromosomes, fitnesses, elitism_number, parameter_mutation_rate,
                     gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate)
-            
             elif algorithm_type == simple_optimiser_fitness_proportionate:
-                # Fitness Proportional
                 chromosomes = algorithm_type.apply_genetic_operators(
                     chromosomes, fitnesses, parameter_mutation_rate,
                     gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate)
-            
             elif algorithm_type == simple_optimiser_fitness_proportionate_elitist:
-                # Fitness Proportional + Elitism
                 chromosomes = algorithm_type.apply_genetic_operators(
                     chromosomes, fitnesses, elitism_number, parameter_mutation_rate,
                     gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate)
-            
             elif algorithm_type == simple_optimiser_tournament:
-                # Tournament
                 chromosomes = algorithm_type.apply_genetic_operators(
                     chromosomes, fitnesses, parameter_mutation_rate,
                     gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate, tournament_size=3)
-            
             elif algorithm_type == simple_optimiser_tournament_elitist:
-                # Tournament + Elitism
                 chromosomes = algorithm_type.apply_genetic_operators(
                     chromosomes, fitnesses, elitism_number, parameter_mutation_rate,
                     gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate, tournament_size=3)
-            
             elif algorithm_type == simple_optimiser_rank:
-                # Rank
                 chromosomes = algorithm_type.apply_genetic_operators(
                     chromosomes, fitnesses, parameter_mutation_rate,
                     gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate)
-            
             elif algorithm_type == simple_optimiser_rank_elitist:
-                # Rank + Elitism
                 chromosomes = algorithm_type.apply_genetic_operators(
                     chromosomes, fitnesses, elitism_number, parameter_mutation_rate,
                     gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate)
         
-        # End of current run – store its full history.
+        # End of current run – obtain final circuits, compute and sort their fitness.
+        final_circuits = algorithm_type.get_circuits(chromosomes)
+        final_fitnesses = algorithm_type.get_circuit_fitnesses(target_states, final_circuits, initial_states)
+        # Sort circuits by fitness (highest first)
+        sorted_final = sorted(zip(final_fitnesses, final_circuits), key=lambda x: x[0], reverse=True)
+        
+        print(f"\nFinal circuits for EA Run {run}, sorted by fitness:")
+        for idx, (fitness, circuit) in enumerate(sorted_final):
+            print(f"\nCircuit {idx} (Fitness: {fitness:.6f}):")
+            print(circuit.draw())
+        
+        # Store this run's full history.
         all_ea_max.append(run_ea_max)
         all_ea_avg.append(run_ea_avg)
     
@@ -253,7 +249,6 @@ def execute_optimisation(timestamp, algorithm_type, iterations, n_runs=10):
 # ================================
 if __name__ == "__main__":
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
-    # For example, run EA for 10,000 iterations (should be <= BASELINE_ITERATIONS)
     # Uncomment the desired algorithm execution line(s)
     # execute_optimisation(timestamp, simple_optimiser, iterations=1000, n_runs=2)
     # execute_optimisation(timestamp, simple_optimiser_fitness_proportionate, iterations=1000, n_runs=2)
