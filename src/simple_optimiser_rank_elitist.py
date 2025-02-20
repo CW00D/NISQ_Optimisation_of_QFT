@@ -266,21 +266,12 @@ def get_circuits(chromosome_list):
 def get_circuit_fitnesses(target_states, circuits, initial_states, simulator=SIMULATOR):
     """
     Evaluate the fitness of each circuit based on similarity to the QFT target states.
-
     The fitness of a circuit is computed by initializing it with every initial state and comparing
     the resulting statevector to the corresponding target state via state fidelity.
-
-    Parameters:
-        target_states (list): List of target statevectors.
-        circuits (list): List of QuantumCircuit objects.
-        initial_states (list): List of initial state Statevectors.
-        simulator (AerSimulator): The Qiskit simulator.
-
-    Returns:
-        list: List of fitness values (one per circuit).
     """
     fitnesses = []
     batch_circuits = []
+    # Build the batch of circuits once.
     for circuit in circuits:
         for state in initial_states:
             new_circuit = QuantumCircuit(*circuit.qregs)
@@ -288,11 +279,16 @@ def get_circuit_fitnesses(target_states, circuits, initial_states, simulator=SIM
             new_circuit.compose(circuit, inplace=True)
             new_circuit.save_statevector()
             batch_circuits.append(new_circuit)
-    results = simulator.run(batch_circuits).result()
-    output_states = [results.get_statevector(i) for i in range(len(batch_circuits))]
     
+    # Run all circuits in one batch.
+    results = simulator.run(batch_circuits).result()
+    batch_size = len(batch_circuits)
+    output_states = [results.get_statevector(i) for i in range(batch_size)]
+    
+    # Compute fitnesses using a local variable for the group size.
     group_size = len(initial_states)
-    for i in range(0, len(output_states), group_size):
+    total_output = len(output_states)
+    for i in range(0, total_output, group_size):
         circuit_states = output_states[i:i + group_size]
         fitnesses.append(compute_phase_fitness(circuit_states, target_states))
     return fitnesses
