@@ -312,6 +312,7 @@ def compute_phase_fitness(circuit_states, target_states):
     fitness = 0
     for out_state, target_state in zip(circuit_states, target_states):
         fitness += state_fidelity(out_state, target_state)
+        #fitness += phase_sensitive_fidelity(out_state, target_state)
     return fitness / len(target_states)
 
 
@@ -464,42 +465,65 @@ def mutate_chromosome(chromosome, parameter_mutation_rate, gate_mutation_rate,
 
 def create_new_layer(qubits):
     """
-    Create a new layer for a chromosome.
-
-    Parameters:
-        qubits (int): Number of qubits (gates in the layer).
-
+    Create a new layer for a chromosome with a single decision per qubit.
+    
+    For each position, one gate is chosen from a combined list:
+      - "w" (barrier) with probability 0.25.
+      - All single-qubit, double-qubit, and triple-qubit gates share the remaining 0.75 equally.
+    
+    For a double-qubit gate, one additional partner is chosen from the remaining free indices.
+    For a triple-qubit gate, two additional partners are chosen.
+    If there aren't enough free indices, the choice falls back to a barrier.
+    
     Returns:
         list: A new layer represented as a list of gate specification strings.
     """
-    layer = ["w"] * qubits
-    for qubit in range(qubits):
-        if np.random.rand() < 0.7:
-            layer[qubit] = "w"
-        else:
-            gate_choice = np.random.choice(SINGLE_QUBIT_GATES)
-            if gate_choice in PARAMETRISED_GATES:
-                layer[qubit] = f"{gate_choice}({qubit}, {np.random.random()})"
+    # Combined list of available gates.
+    available_gates = ["w"] + SINGLE_QUBIT_GATES + DOUBLE_QUBIT_GATES + TRIPLE_QUBIT_GATES
+    n_options = len(available_gates)
+    
+    # Set barrier weight to 0.25; the remaining 0.75 is distributed equally among the other options.
+    weight_barrier = 0.25
+    weight_other = 0.75 / (n_options - 1) if n_options > 1 else 0
+    weights = [weight_barrier] + [weight_other] * (n_options - 1)
+    
+    # Initialize a layer with None for each qubit.
+    layer = [None] * qubits
+    free_indices = list(range(qubits))
+    
+    while free_indices:
+        idx = free_indices.pop(0)
+        chosen_gate = random.choices(available_gates, weights=weights, k=1)[0]
+        
+        if chosen_gate in DOUBLE_QUBIT_GATES:
+            if free_indices:
+                partner = random.choice(free_indices)
+                free_indices.remove(partner)
+                if chosen_gate in PARAMETRISED_GATES:
+                    layer[idx] = f"{chosen_gate}({partner},{idx},{np.random.random()})"
+                else:
+                    layer[idx] = f"{chosen_gate}({partner},{idx})"
+                layer[partner] = "-"  # Mark the partner position as control.
             else:
-                layer[qubit] = f"{gate_choice}({qubit})"
-    if np.random.rand() < 0.5:
-        target_qubit = np.random.randint(0, qubits)
-        control_qubit = np.random.randint(0, qubits)
-        while control_qubit == target_qubit:
-            control_qubit = np.random.randint(0, qubits)
-        gate_choice = np.random.choice(DOUBLE_QUBIT_GATES)
-        if gate_choice in PARAMETRISED_GATES:
-            layer[target_qubit] = f"{gate_choice}({control_qubit},{target_qubit},{np.random.random()})"
+                layer[idx] = "w"  # Not enough free indices.
+        elif chosen_gate in TRIPLE_QUBIT_GATES:
+            if len(free_indices) >= 2:
+                partners = random.sample(free_indices, 2)
+                for p in partners:
+                    free_indices.remove(p)
+                if chosen_gate in PARAMETRISED_GATES:
+                    layer[idx] = f"{chosen_gate}({partners[0]},{partners[1]},{idx},{np.random.random()})"
+                else:
+                    layer[idx] = f"{chosen_gate}({partners[0]},{partners[1]},{idx})"
+                # Mark both partner positions as controls.
+                layer[partners[0]] = "-"
+                layer[partners[1]] = "-"
+            else:
+                layer[idx] = "w"  # Not enough free indices.
         else:
-            layer[target_qubit] = f"{gate_choice}({control_qubit},{target_qubit})"
-        layer[control_qubit] = "-"
-    if np.random.rand() < 0.2:
-        qubit_1, qubit_2, qubit_3 = np.random.choice(range(qubits), size=3, replace=False)
-        gate_choice = np.random.choice(TRIPLE_QUBIT_GATES)
-        if gate_choice in PARAMETRISED_GATES:
-            layer[qubit_3] = f"{gate_choice}({qubit_1},{qubit_2},{qubit_3},{np.random.random()})"
-        else:
-            layer[qubit_3] = f"{gate_choice}({qubit_1},{qubit_2},{qubit_3})"
-        layer[qubit_1] = "-"
-        layer[qubit_2] = "-"
+            # For barrier "w" or single-qubit gates.
+            if chosen_gate in PARAMETRISED_GATES:
+                layer[idx] = f"{chosen_gate}({idx},{np.random.random()})"
+            else:
+                layer[idx] = f"{chosen_gate}({idx})"
     return layer
