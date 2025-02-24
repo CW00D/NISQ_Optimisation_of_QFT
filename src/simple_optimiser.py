@@ -1,6 +1,4 @@
 """
-Refactored simple_optimiser.py
-
 This module implements an evolutionary algorithm (EA) approach to optimize quantum circuits.
 It includes functions for initializing a population of chromosomes (each representing a circuit),
 evaluating circuit fitness (using state fidelity against QFT-transformed states), and applying
@@ -19,7 +17,7 @@ The code is organized into:
 # Standard Library Imports
 # ---------------------------
 import re
-import copy
+import random
 
 # ---------------------------
 # Third-Party Imports
@@ -53,6 +51,9 @@ PARAMETRISED_GATES = [
 # Qiskit Simulator instance.
 SIMULATOR = AerSimulator(method='statevector')
 
+
+# Fitness Cache
+fitness_cache = {}
 
 # ---------------------------
 # Helper Functions
@@ -124,6 +125,51 @@ def build_gate_map(circuit):
     }
 
 
+def rank_selection(chromosomes, fitnesses):
+    """
+    Selects one chromosome using linear rank selection.
+    The highest fitness chromosome has rank 'pop_size',
+    the lowest has rank 1, and selection probability is proportional to rank.
+    """
+    pop_size = len(chromosomes)
+    # Sort indices by fitness ascending
+    sorted_indices = sorted(range(pop_size), key=lambda i: fitnesses[i])
+    
+    # ranks[i] = the rank of the chromosome sorted_indices[i]
+    # highest fitness -> rank = pop_size, lowest fitness -> rank = 1
+    ranks = [i+1 for i in range(pop_size)]  # ranks from 1..pop_size
+    
+    # Build a list of (chromosome, rank)
+    # sorted_indices[0] is the worst, has rank=1
+    # sorted_indices[-1] is the best, has rank=pop_size
+    # We want the best to have the highest rank
+    chrom_and_rank = []
+    for rank_idx, idx in enumerate(sorted_indices):
+        chrom_and_rank.append((idx, ranks[rank_idx]))
+    
+    total_rank = sum(ranks)
+    pick = random.uniform(0, total_rank)
+    current = 0
+    
+    for idx, rank_val in chrom_and_rank:
+        current += rank_val
+        if current >= pick:
+            return copy_chromosome(chromosomes[idx])    
+    # Fallback (rarely triggered due to float rounding):
+    return copy_chromosome(chromosomes[sorted_indices[-1]])
+
+
+def get_chromosome_key(chromosome):
+    """
+    Convert a chromosome (list of layers) into a hashable tuple-of-tuples.
+    """
+    return tuple(tuple(layer) for layer in chromosome)
+
+
+def copy_chromosome(chromosome):
+    # Slicing each inner list creates a new list while the strings (immutable) remain shared.
+    return [layer[:] for layer in chromosome]
+
 # ---------------------------
 # Initialization and Evaluation Functions
 # ---------------------------
@@ -160,10 +206,10 @@ def evaluate_random_circuits(population, iterations, qubits, initial_circuit_dep
     Returns:
         tuple: (max_fitness, average_fitness) over the evaluated circuits.
     """
-    random_circuits = [[create_new_layer(qubits) for _ in range(initial_circuit_depth)]
+    random_chromosomes = [[create_new_layer(qubits) for _ in range(initial_circuit_depth)]
                        for _ in range(population * iterations)]
-    circuits = get_circuits(random_circuits)
-    fitnesses = get_circuit_fitnesses(target_states, circuits, initial_states)
+    random_circuits = get_circuits(random_chromosomes)
+    fitnesses = get_circuit_fitnesses(target_states, random_circuits, random_chromosomes, initial_states)
     return max(fitnesses), sum(fitnesses) / len(fitnesses)
 
 
@@ -227,38 +273,53 @@ def get_circuits(chromosome_list):
 # ---------------------------
 # Fitness Functions
 # ---------------------------
-def get_circuit_fitnesses(target_states, circuits, initial_states, simulator=SIMULATOR):
+def get_circuit_fitnesses(target_states, circuits, chromosomes, initial_states, simulator=SIMULATOR):
     """
-    Evaluate the fitness of each circuit based on similarity to the QFT target states.
-
-    The fitness of a circuit is computed by initializing it with every initial state and comparing
-    the resulting statevector to the corresponding target state via state fidelity.
-
+    Evaluate the fitness for each circuit (corresponding to the provided chromosomes).
+    For chromosomes that have been evaluated before, use the cached fitness.
+    
     Parameters:
         target_states (list): List of target statevectors.
         circuits (list): List of QuantumCircuit objects.
+        chromosomes (list): List of chromosome representations corresponding to the circuits.
         initial_states (list): List of initial state Statevectors.
         simulator (AerSimulator): The Qiskit simulator.
-
-    Returns:
-        list: List of fitness values (one per circuit).
-    """
-    fitnesses = []
-    batch_circuits = []
-    for circuit in circuits:
-        for state in initial_states:
-            new_circuit = QuantumCircuit(*circuit.qregs)
-            new_circuit.initialize(state)
-            new_circuit.compose(circuit, inplace=True)
-            new_circuit.save_statevector()
-            batch_circuits.append(new_circuit)
-    results = simulator.run(batch_circuits).result()
-    output_states = [results.get_statevector(i) for i in range(len(batch_circuits))]
     
+    Returns:
+        list: Fitness values for each circuit.
+    """
+    # Preallocate fitness list.
+    fitnesses = [None] * len(circuits)
+    # Prepare a batch for circuits that need evaluation.
+    batch_circuits = []
+    batch_indices = []
     group_size = len(initial_states)
-    for i in range(0, len(output_states), group_size):
-        circuit_states = output_states[i:i + group_size]
-        fitnesses.append(compute_phase_fitness(circuit_states, target_states))
+    
+    for i, circuit in enumerate(circuits):
+        key = get_chromosome_key(chromosomes[i])
+        if key in fitness_cache:
+            fitnesses[i] = fitness_cache[key]
+        else:
+            batch_indices.append(i)
+            for state in initial_states:
+                new_circuit = QuantumCircuit(*circuit.qregs)
+                new_circuit.initialize(state)
+                new_circuit.compose(circuit, inplace=True)
+                new_circuit.save_statevector()
+                batch_circuits.append(new_circuit)
+    
+    if batch_circuits:
+        results = simulator.run(batch_circuits).result()
+        output_states = [results.get_statevector(j) for j in range(len(batch_circuits))]
+        # For each chromosome that needed evaluation, compute its fitness.
+        for count, i in enumerate(batch_indices):
+            start = count * group_size
+            end = start + group_size
+            circuit_states = output_states[start:end]
+            fitness = compute_phase_fitness(circuit_states, target_states)
+            key = get_chromosome_key(chromosomes[i])
+            fitness_cache[key] = fitness
+            fitnesses[i] = fitness
     return fitnesses
 
 
@@ -276,6 +337,7 @@ def compute_phase_fitness(circuit_states, target_states):
     fitness = 0
     for out_state, target_state in zip(circuit_states, target_states):
         fitness += state_fidelity(out_state, target_state)
+        #fitness += phase_sensitive_fidelity(out_state, target_state)
     return fitness / len(target_states)
 
 
@@ -302,39 +364,40 @@ def phase_sensitive_fidelity(output_state, target_state):
 # ---------------------------
 # Genetic Operators
 # ---------------------------
-def apply_genetic_operators(chromosomes, fitnesses, parent_chromosomes, parameter_mutation_rate,
-                            gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate):
+def apply_genetic_operators(
+    chromosomes, fitnesses, elite_count, parameter_mutation_rate, gate_mutation_rate,
+    layer_mutation_rate, max_parameter_mutation, layer_deletion_rate
+):
     """
-    Apply genetic operators (elitism, crossover, mutation) to produce a new population.
-
-    Parameters:
-        chromosomes (list): Current population of chromosomes.
-        fitnesses (list): Fitness values corresponding to each chromosome.
-        parent_chromosomes (int): Number of top chromosomes to preserve (elitism).
-        parameter_mutation_rate (float): Mutation rate for gate parameters.
-        gate_mutation_rate (float): Mutation rate for gate type.
-        layer_mutation_rate (float): Probability of adding a new layer.
-        max_parameter_mutation (float): Maximum mutation factor for parameters.
-        layer_deletion_rate (float): Probability of deleting an entire layer.
-
-    Returns:
-        list: New population of chromosomes.
+    Creates a new population by preserving 'elite_count' top individuals,
+    then using rank selection to fill the rest.
     """
+    # Identify elites
     sorted_indices = sorted(range(len(fitnesses)), key=lambda i: fitnesses[i], reverse=True)
-    elites = [copy.deepcopy(chromosomes[idx]) for idx in sorted_indices[:parent_chromosomes]]
-    top_indices = sorted_indices[:parent_chromosomes]
-    bottom_indices = sorted_indices[-(len(chromosomes) - parent_chromosomes):]
-
-    child_chromosomes = []
-    while len(child_chromosomes) < len(bottom_indices):
-        parent_1_index, parent_2_index = np.random.choice(top_indices, 2, replace=False)
-        child_1, child_2 = crossover(chromosomes[parent_1_index], chromosomes[parent_2_index])
-        child_chromosomes.append(mutate_chromosome(child_1, parameter_mutation_rate, gate_mutation_rate,
-                                                   layer_mutation_rate, max_parameter_mutation, layer_deletion_rate))
-        if len(child_chromosomes) < len(bottom_indices):
-            child_chromosomes.append(mutate_chromosome(child_2, parameter_mutation_rate, gate_mutation_rate,
-                                                       layer_mutation_rate, max_parameter_mutation, layer_deletion_rate))
-    return elites + child_chromosomes
+    elites = [copy_chromosome(chromosomes[i]) for i in sorted_indices[:elite_count]]
+    
+    # Generate the remaining population with rank selection
+    new_population = []
+    remaining = len(chromosomes) - elite_count
+    while len(new_population) < remaining:
+        parent1 = rank_selection(chromosomes, fitnesses)
+        parent2 = rank_selection(chromosomes, fitnesses)
+        child1, child2 = crossover(parent1, parent2)
+        
+        child1 = mutate_chromosome(
+            child1, parameter_mutation_rate, gate_mutation_rate,
+            layer_mutation_rate, max_parameter_mutation, layer_deletion_rate
+        )
+        child2 = mutate_chromosome(
+            child2, parameter_mutation_rate, gate_mutation_rate,
+            layer_mutation_rate, max_parameter_mutation, layer_deletion_rate
+        )
+        
+        new_population.append(child1)
+        if len(new_population) < remaining:
+            new_population.append(child2)
+    
+    return elites + new_population
 
 
 def crossover(parent_1, parent_2):
@@ -427,42 +490,65 @@ def mutate_chromosome(chromosome, parameter_mutation_rate, gate_mutation_rate,
 
 def create_new_layer(qubits):
     """
-    Create a new layer for a chromosome.
-
-    Parameters:
-        qubits (int): Number of qubits (gates in the layer).
-
+    Create a new layer for a chromosome with a single decision per qubit.
+    
+    For each position, one gate is chosen from a combined list:
+      - "w" (barrier) with probability 0.25.
+      - All single-qubit, double-qubit, and triple-qubit gates share the remaining 0.75 equally.
+    
+    For a double-qubit gate, one additional partner is chosen from the remaining free indices.
+    For a triple-qubit gate, two additional partners are chosen.
+    If there aren't enough free indices, the choice falls back to a barrier.
+    
     Returns:
         list: A new layer represented as a list of gate specification strings.
     """
-    layer = ["w"] * qubits
-    for qubit in range(qubits):
-        if np.random.rand() < 0.7:
-            layer[qubit] = "w"
-        else:
-            gate_choice = np.random.choice(SINGLE_QUBIT_GATES)
-            if gate_choice in PARAMETRISED_GATES:
-                layer[qubit] = f"{gate_choice}({qubit}, {np.random.random()})"
+    # Combined list of available gates.
+    available_gates = ["w"] + SINGLE_QUBIT_GATES + DOUBLE_QUBIT_GATES + TRIPLE_QUBIT_GATES
+    n_options = len(available_gates)
+    
+    # Set barrier weight to 0.25; the remaining 0.75 is distributed equally among the other options.
+    weight_barrier = 0.25
+    weight_other = 0.75 / (n_options - 1) if n_options > 1 else 0
+    weights = [weight_barrier] + [weight_other] * (n_options - 1)
+    
+    # Initialize a layer with None for each qubit.
+    layer = [None] * qubits
+    free_indices = list(range(qubits))
+    
+    while free_indices:
+        idx = free_indices.pop(0)
+        chosen_gate = random.choices(available_gates, weights=weights, k=1)[0]
+        
+        if chosen_gate in DOUBLE_QUBIT_GATES:
+            if free_indices:
+                partner = random.choice(free_indices)
+                free_indices.remove(partner)
+                if chosen_gate in PARAMETRISED_GATES:
+                    layer[idx] = f"{chosen_gate}({partner},{idx},{np.random.random()})"
+                else:
+                    layer[idx] = f"{chosen_gate}({partner},{idx})"
+                layer[partner] = "-"  # Mark the partner position as control.
             else:
-                layer[qubit] = f"{gate_choice}({qubit})"
-    if np.random.rand() < 0.5:
-        target_qubit = np.random.randint(0, qubits)
-        control_qubit = np.random.randint(0, qubits)
-        while control_qubit == target_qubit:
-            control_qubit = np.random.randint(0, qubits)
-        gate_choice = np.random.choice(DOUBLE_QUBIT_GATES)
-        if gate_choice in PARAMETRISED_GATES:
-            layer[target_qubit] = f"{gate_choice}({control_qubit},{target_qubit},{np.random.random()})"
+                layer[idx] = "w"  # Not enough free indices.
+        elif chosen_gate in TRIPLE_QUBIT_GATES:
+            if len(free_indices) >= 2:
+                partners = random.sample(free_indices, 2)
+                for p in partners:
+                    free_indices.remove(p)
+                if chosen_gate in PARAMETRISED_GATES:
+                    layer[idx] = f"{chosen_gate}({partners[0]},{partners[1]},{idx},{np.random.random()})"
+                else:
+                    layer[idx] = f"{chosen_gate}({partners[0]},{partners[1]},{idx})"
+                # Mark both partner positions as controls.
+                layer[partners[0]] = "-"
+                layer[partners[1]] = "-"
+            else:
+                layer[idx] = "w"  # Not enough free indices.
         else:
-            layer[target_qubit] = f"{gate_choice}({control_qubit},{target_qubit})"
-        layer[control_qubit] = "-"
-    if np.random.rand() < 0.2:
-        qubit_1, qubit_2, qubit_3 = np.random.choice(range(qubits), size=3, replace=False)
-        gate_choice = np.random.choice(TRIPLE_QUBIT_GATES)
-        if gate_choice in PARAMETRISED_GATES:
-            layer[qubit_3] = f"{gate_choice}({qubit_1},{qubit_2},{qubit_3},{np.random.random()})"
-        else:
-            layer[qubit_3] = f"{gate_choice}({qubit_1},{qubit_2},{qubit_3})"
-        layer[qubit_1] = "-"
-        layer[qubit_2] = "-"
+            # For barrier "w" or single-qubit gates.
+            if chosen_gate in PARAMETRISED_GATES:
+                layer[idx] = f"{chosen_gate}({idx},{np.random.random()})"
+            else:
+                layer[idx] = f"{chosen_gate}({idx})"
     return layer
