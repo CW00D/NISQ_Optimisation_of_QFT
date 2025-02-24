@@ -8,7 +8,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from qiskit.quantum_info import Statevector
-import simple_optimiser_rank_elitist as optimiser
+import simple_optimiser as optimiser
 
 # ================================
 # Global Execution Parameters
