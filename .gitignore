@@ -23,6 +23,8 @@ Experiment Results/Logs/
 # Experiment data and outputs
 experiments/data/
 experiments/analysis/results/
+experiments/Parent Selection Variants/Charts/*
+experiments/Parent Selection Variants/Logs/*
 
 # Build artifacts
 *.egg-info/
