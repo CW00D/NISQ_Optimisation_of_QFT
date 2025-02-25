@@ -8,7 +8,13 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from qiskit.quantum_info import Statevector
-import simple_optimiser as optimiser
+
+# ================================
+# Simulator Selection
+# ================================
+#import simple_optimiser as optimiser
+import simple_optimiser_noisy as optimiser
+
 
 # ================================
 # Global Execution Parameters
@@ -29,7 +35,7 @@ layer_deletion_rate = 0.03
 BASELINE_ITERATIONS = 20000
 N_RANDOM_RUNS = 10
 RANDOM_BASELINE_DIR = "Experiment Results/Random_Baseline"
-RANDOM_BASELINE_FILE = os.path.join(RANDOM_BASELINE_DIR, "random_baseline copy.csv")
+RANDOM_BASELINE_FILE = os.path.join(RANDOM_BASELINE_DIR, "random_baseline.csv")
 
 # ================================
 # Random Baseline Functions
