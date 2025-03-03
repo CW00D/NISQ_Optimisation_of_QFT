@@ -1,5 +1,5 @@
 
-import simple_optimiser
+import optimiser_simple
 
 qft_chromosome = [
         ["h(0)", "w", "w"],  # Hadamard on qubit 0
@@ -11,6 +11,6 @@ qft_chromosome = [
         ["swap(0,2)", "w", "w"],  # Swap qubits 0 and 2
     ]
     
-qft_circuit = simple_optimiser.get_circuits([qft_chromosome])
-fitness = simple_optimiser.get_circuit_fitnesses(qft_circuit, 3)
+qft_circuit = optimiser_simple.get_circuits([qft_chromosome])
+fitness = optimiser_simple.get_circuit_fitnesses(qft_circuit, 3)
 print(fitness)

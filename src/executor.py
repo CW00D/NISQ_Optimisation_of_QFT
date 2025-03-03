@@ -12,9 +12,9 @@ from qiskit.quantum_info import Statevector
 # ================================
 # Simulator Selection
 # ================================
-#import simple_optimiser as optimiser
-import simple_optimiser_noisy as optimiser
-
+#import optimiser_simple as optimiser
+#import optimiser_noisy as optimiser
+import optimiser_depth_reduction as optimiser
 
 # ================================
 # Global Execution Parameters
@@ -158,7 +158,8 @@ def run_single_run(run, iterations, population, qubits, initial_circuit_depth,
     
     final_circuits = optimiser.get_circuits(chromosomes)
     final_fitnesses = optimiser.get_circuit_fitnesses(target_states, final_circuits, chromosomes, initial_states)
-    sorted_final = sorted(zip(final_fitnesses, final_circuits), key=lambda x: x[0], reverse=True)
+    # Only return fitness and chromosome (drop the circuit object)
+    sorted_final = sorted(zip(final_fitnesses, chromosomes), key=lambda x: x[0], reverse=True)
     return run_ea_max, run_ea_avg, sorted_final
 
 # ================================
@@ -180,8 +181,8 @@ def execute_optimisation(timestamp, iterations, n_runs=10):
     all_ea_avg = []
     overall_final = []
     
-    # Execute independent EA runs in parallel.
-    with concurrent.futures.ProcessPoolExecutor() as executor:
+    # Execute independent EA runs in parallel using ThreadPoolExecutor instead of ProcessPoolExecutor.
+    with concurrent.futures.ThreadPoolExecutor() as executor:
         futures = []
         for run in range(n_runs):
             futures.append(
@@ -219,9 +220,22 @@ def execute_optimisation(timestamp, iterations, n_runs=10):
     overall_final_sorted = sorted(overall_final, key=lambda x: x[0], reverse=True)
     print("\n" + "="*30)
     print("Top 10 circuits overall from all runs:")
-    for idx, (fitness, circuit) in enumerate(overall_final_sorted[:10]):
+    for idx, (fitness, chromosome) in enumerate(overall_final_sorted[:10]):
+        # Reconstruct the circuit from the chromosome for display
+        circuit = optimiser.get_circuits([chromosome])[0]
         print(f"\nCircuit {idx} (Fitness: {fitness:.6f}):")
         print(circuit.draw())
+    
+    # Save top 10 chromosomes to CSV for later evaluation on different noisy simulators.
+    chromosome_folder = f"Experiment Results/Chromosomes/{optimiser.__name__.capitalize()}"
+    os.makedirs(chromosome_folder, exist_ok=True)
+    chromosome_filepath = os.path.join(chromosome_folder, f"{timestamp}.csv")
+    with open(chromosome_filepath, "w") as cf:
+        cf.write("Rank,Fitness,Chromosome\n")
+        for idx, (fitness, chromosome) in enumerate(overall_final_sorted[:10]):
+            cf.write(f"{idx},{fitness:.6f},\"{chromosome}\"\n")
+    print("Top chromosomes saved in:", chromosome_filepath)
+
 
 # ================================
 # Main Execution Block
@@ -229,4 +243,4 @@ def execute_optimisation(timestamp, iterations, n_runs=10):
 if __name__ == "__main__":
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
     # Change iterations and n_runs as needed.
-    execute_optimisation(timestamp, iterations=20000, n_runs=10)
+    execute_optimisation(timestamp, iterations=20000, n_runs=1)

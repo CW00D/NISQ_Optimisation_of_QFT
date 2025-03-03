@@ -4,7 +4,7 @@ import time
 import csv
 from datetime import datetime
 import executor
-import simple_optimiser
+import optimiser_simple
 
 # === Define the grid for the mutation parameters ===
 # (Adjust these ranges/values as needed for your exploration.)
@@ -48,7 +48,7 @@ for pmr in parameter_mutation_rates:
                     # Note: We use the globals from executor for population, qubits, etc.
                     executor.execute_optimisation(
                         full_timestamp,
-                        simple_optimiser,
+                        optimiser_simple,
                         mode="iteration",
                         population=executor.population,
                         qubits=executor.qubits,
@@ -60,7 +60,7 @@ for pmr in parameter_mutation_rates:
                     # The log file is written to:
                     #   Experiment Results/Logs/{Algorithm}/Iteration_Execution/{full_timestamp}.log
                     log_folder = os.path.join("Experiment Results", "Logs",
-                                              simple_optimiser.__name__.capitalize(),
+                                              optimiser_simple.__name__.capitalize(),
                                               "Iteration_Execution")
                     log_file_path = os.path.join(log_folder, f"{full_timestamp}.log")
                     

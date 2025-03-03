@@ -324,8 +324,14 @@ def get_circuit_fitnesses(target_states, circuits, chromosomes, initial_states, 
                 batch_circuits.append(new_circuit)
     
     if batch_circuits:
-        results = simulator.run(batch_circuits).result()
-        output_states = [results.get_statevector(j) for j in range(len(batch_circuits))]
+        # Process batch_circuits in smaller chunks to avoid MemoryError.
+        chunk_size = 50  # Adjust this value as needed.
+        output_states = []
+        for start in range(0, len(batch_circuits), chunk_size):
+            end = start + chunk_size
+            chunk = batch_circuits[start:end]
+            results = simulator.run(chunk).result()
+            output_states.extend([results.get_statevector(j) for j in range(len(chunk))])
         # For each chromosome that needed evaluation, compute its fitness.
         for count, i in enumerate(batch_indices):
             start = count * group_size
