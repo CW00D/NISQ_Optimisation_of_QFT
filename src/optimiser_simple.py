@@ -49,8 +49,8 @@ PARAMETRISED_GATES = [
 ]
 
 # Qiskit Simulator instance.
-SIMULATOR = AerSimulator(method='statevector')
-
+SIMULATOR = AerSimulator(method='density_matrix')
+native_gates = SIMULATOR.configuration().basis_gates
 
 # Fitness Cache
 fitness_cache = {}
@@ -191,7 +191,7 @@ def initialize_chromosomes(population, qubits, initial_circuit_depth):
             for _ in range(population)]
 
 
-def evaluate_random_circuits(population, iterations, qubits, initial_circuit_depth, initial_states, target_states):
+def evaluate_random_circuits(population, iterations, qubits, initial_circuit_depth, target_states):
     """
     Evaluate a set of randomly generated circuits.
 
@@ -209,7 +209,7 @@ def evaluate_random_circuits(population, iterations, qubits, initial_circuit_dep
     random_chromosomes = [[create_new_layer(qubits) for _ in range(initial_circuit_depth)]
                        for _ in range(population * iterations)]
     random_circuits = get_circuits(random_chromosomes)
-    fitnesses = get_circuit_fitnesses(target_states, random_circuits, random_chromosomes, initial_states)
+    fitnesses = get_circuit_fitnesses(target_states, random_circuits, random_chromosomes)
     return max(fitnesses), sum(fitnesses) / len(fitnesses)
 
 
@@ -233,9 +233,9 @@ def get_qft_target_states(qubits, simulator=SIMULATOR):
                 target_circuit.x(j)
         target_circuit.append(QFT(num_qubits=qubits), list(range(qubits)))
         target_circuit = transpile(target_circuit, basis_gates=['u', 'cx'])
-        target_circuit.save_statevector()
-        result = SIMULATOR.run(target_circuit).result()
-        target_states.append(result.get_statevector())
+        target_circuit.save_density_matrix()
+        result = simulator.run(target_circuit).result()
+        target_states.append(result.data(0)['density_matrix'])
     return target_states
 
 
@@ -273,16 +273,16 @@ def get_circuits(chromosome_list):
 # ---------------------------
 # Fitness Functions
 # ---------------------------
-def get_circuit_fitnesses(target_states, circuits, chromosomes, initial_states, simulator=SIMULATOR):
+def get_circuit_fitnesses(target_states, circuits, chromosomes, simulator=SIMULATOR):
     """
     Evaluate the fitness for each circuit (corresponding to the provided chromosomes).
     For chromosomes that have been evaluated before, use the cached fitness.
     
     Parameters:
-        target_states (list): List of target statevectors.
+        target_states (list): List of target density matrices.
         circuits (list): List of QuantumCircuit objects.
         chromosomes (list): List of chromosome representations corresponding to the circuits.
-        initial_states (list): List of initial state Statevectors.
+        initial_states (list): List of initial state representations (ignored now).
         simulator (AerSimulator): The Qiskit simulator.
     
     Returns:
@@ -293,7 +293,8 @@ def get_circuit_fitnesses(target_states, circuits, chromosomes, initial_states, 
     # Prepare a batch for circuits that need evaluation.
     batch_circuits = []
     batch_indices = []
-    group_size = len(initial_states)
+    # Instead of using the provided initial_states, we now use all computational basis states.
+    group_size = 2 ** len(circuits[0].qregs[0])
     
     for i, circuit in enumerate(circuits):
         key = get_chromosome_key(chromosomes[i])
@@ -301,29 +302,35 @@ def get_circuit_fitnesses(target_states, circuits, chromosomes, initial_states, 
             fitnesses[i] = fitness_cache[key]
         else:
             batch_indices.append(i)
-            for state in initial_states:
+            # Transpile the circuit once per chromosome.
+            transpiled_circuit = transpile(circuit, basis_gates=native_gates)
+            # For each computational basis state, prepare that state using x gates.
+            for idx in range(group_size):
                 new_circuit = QuantumCircuit(*circuit.qregs)
-                new_circuit.initialize(state)
-                new_circuit.compose(circuit, inplace=True)
-                new_circuit.save_statevector()
+                binary_str = format(idx, f'0{len(circuit.qregs[0])}b')
+                for j, bit in enumerate(binary_str):
+                    if bit == '1':
+                        new_circuit.x(j)
+                new_circuit.compose(transpiled_circuit, inplace=True)
+                new_circuit.save_density_matrix()
                 batch_circuits.append(new_circuit)
     
     if batch_circuits:
         results = simulator.run(batch_circuits).result()
-        output_states = [results.get_statevector(j) for j in range(len(batch_circuits))]
+        output_states = [results.data(j)['density_matrix'] for j in range(len(batch_circuits))]
         # For each chromosome that needed evaluation, compute its fitness.
         for count, i in enumerate(batch_indices):
             start = count * group_size
             end = start + group_size
             circuit_states = output_states[start:end]
-            fitness = compute_phase_fitness(circuit_states, target_states)
+            fitness = compute_fidelity(circuit_states, target_states)
             key = get_chromosome_key(chromosomes[i])
             fitness_cache[key] = fitness
             fitnesses[i] = fitness
     return fitnesses
 
 
-def compute_phase_fitness(circuit_states, target_states):
+def compute_fidelity(circuit_states, target_states):
     """
     Compute the fitness of a circuit as the average state fidelity over all basis states.
 
@@ -337,28 +344,7 @@ def compute_phase_fitness(circuit_states, target_states):
     fitness = 0
     for out_state, target_state in zip(circuit_states, target_states):
         fitness += state_fidelity(out_state, target_state)
-        #fitness += phase_sensitive_fidelity(out_state, target_state)
     return fitness / len(target_states)
-
-
-def phase_sensitive_fidelity(output_state, target_state):
-    """
-    Compute a phase-sensitive fidelity metric between two statevectors.
-
-    Parameters:
-        output_state (Statevector): The state produced by the circuit.
-        target_state (Statevector): The target state.
-
-    Returns:
-        float: Phase-sensitive fidelity.
-    """
-    output_sv = Statevector(output_state)
-    target_sv = Statevector(target_state)
-    output_phases = np.angle(output_sv.data)
-    target_phases = np.angle(target_sv.data)
-    phase_differences = (output_phases - target_phases) % (2 * np.pi)
-    phase_differences = np.where(phase_differences > np.pi, phase_differences - 2 * np.pi, phase_differences)
-    return 1 - np.mean(phase_differences ** 2) / (np.pi ** 2)
 
 
 # ---------------------------

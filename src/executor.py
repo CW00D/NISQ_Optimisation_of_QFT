@@ -12,14 +12,15 @@ from qiskit.quantum_info import Statevector
 # ================================
 # Simulator Selection
 # ================================
-#import optimiser_simple as optimiser
+import optimiser_simple as optimiser
 #import optimiser_noisy as optimiser
-import optimiser_depth_reduction as optimiser
+#import optimiser_depth_reduction as optimiser
 
 # ================================
 # Global Execution Parameters
 # ================================
 population = 100
+#population = 10
 qubits = 3
 initial_circuit_depth = 10
 
@@ -53,7 +54,7 @@ def compute_random_baseline(baseline_iterations=BASELINE_ITERATIONS, n_random_ru
         run_random_avg = []
         for i in range(baseline_iterations):
             random_max_fitness, random_avg_fitness = optimiser.evaluate_random_circuits(
-                population, 1, qubits, initial_circuit_depth, initial_states, target_states
+                population, 1, qubits, initial_circuit_depth, target_states
             )
             current_random_max = max(current_random_max, random_max_fitness)
             run_random_max.append(current_random_max)
@@ -243,4 +244,4 @@ def execute_optimisation(timestamp, iterations, n_runs=10):
 if __name__ == "__main__":
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
     # Change iterations and n_runs as needed.
-    execute_optimisation(timestamp, iterations=20000, n_runs=1)
+    execute_optimisation(timestamp, iterations=1000, n_runs=1)

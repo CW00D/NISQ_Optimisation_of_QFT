@@ -38,14 +38,7 @@ noisy_simulator = AerSimulator(method='density_matrix', noise_model=noise_model)
 # ---------------------------
 # STEP 4: Define Helper Functions for Evaluation
 # ---------------------------
-native_gates = ['ccx', 'cp', 'cu1', 'cx', 'cy', 'cz', 'diagonal', 'ecr', 'h', 'id', 
-                'p', 'pauli', 'r', 'rx', 'rxx', 'ry', 'ryy', 'rz', 'rzx', 'rzz', 's', 
-                'sdg', 'swap', 'sx', 'sxdg', 't', 'tdg', 'u', 'u1', 'u2', 'u3', 'unitary', 
-                'x', 'y', 'z', 'break_loop', 'continue_loop', 'delay', 'for_loop', 'if_else', 
-                'kraus', 'qerror_loc', 'quantum_channel', 'reset', 'roerror', 'save_amplitudes_sq', 
-                'save_density_matrix', 'save_expval', 'save_expval_var', 'save_probabilities', 
-                'save_probabilities_dict', 'save_state', 'set_density_matrix', 'superop', 
-                'switch_case', 'while_loop']
+native_gates = AerSimulator(method='density_matrix').configuration().basis_gates
 
 def get_qft_target_states(qubits, simulator):
     target_states = []
