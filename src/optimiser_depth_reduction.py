@@ -30,7 +30,7 @@ import numpy as np
 from qiskit import QuantumCircuit, transpile
 from qiskit_aer import AerSimulator
 from qiskit.circuit.library import QFT
-from qiskit.quantum_info import Statevector, state_fidelity
+from qiskit.quantum_info import state_fidelity
 
 # ---------------------------
 # Global Constants
