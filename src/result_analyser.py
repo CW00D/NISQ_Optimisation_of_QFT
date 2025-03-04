@@ -14,10 +14,11 @@ from optimiser_noisy import get_circuits
 # ---------------------------
 # STEP 1: Load the CSV file with circuit chromosomes
 # ---------------------------
-csv_file_path = r"Experiment Results\\Chromosomes\\Optimiser_depth_reduction\\2025-03-03_15-26.csv"
+csv_file_path = r"Experiment Results\\Chromosomes\\Optimiser_noisy\\2025-03-03_19-34.csv"
 df = pd.read_csv(csv_file_path)
 df['Chromosome'] = df['Chromosome'].apply(ast.literal_eval)
 top_chromosomes = df['Chromosome'].tolist()
+print("Loaded the top chromosomes from the CSV file.")
 
 # ---------------------------
 # STEP 2: Convert chromosomes to QuantumCircuit objects
@@ -25,6 +26,7 @@ top_chromosomes = df['Chromosome'].tolist()
 circuits = get_circuits(top_chromosomes)
 # Assume all chromosomes have the same number of qubits:
 num_qubits = len(top_chromosomes[0][0])
+print(f"Converted the top chromosomes to QuantumCircuit objects with {num_qubits} qubits.")
 
 # ---------------------------
 # STEP 3: Set up Simulators (Noiseless & Noisy)
@@ -34,6 +36,7 @@ backend = service.backend('ibm_brisbane')
 noise_model = NoiseModel.from_backend(backend)
 noiseless_simulator = AerSimulator(method='density_matrix')
 noisy_simulator = AerSimulator(method='density_matrix', noise_model=noise_model)
+print("Set up the noiseless and noisy simulators.")
 
 # ---------------------------
 # STEP 4: Define Helper Functions for Evaluation
@@ -71,12 +74,14 @@ def evaluate_circuit_fitness(circuit, simulator, num_qubits, target_states):
         state = result.data(0)['density_matrix']
         fidelity = state_fidelity(state, target_state)
         fitness_total += fidelity
+        print("Evaluated the circuit's fitness under both conditions.")
     return fitness_total / (2 ** num_qubits)
-
+    
 # ---------------------------
 # STEP 5: Generate Target Density Matrices
 # ---------------------------
 target_states = get_qft_target_states(num_qubits, noiseless_simulator)
+print("Generated the target density matrices for the QFT circuit.")
 
 # ---------------------------
 # STEP 6: Evaluate Each Circuit Under Both Conditions
@@ -93,6 +98,7 @@ results = pd.DataFrame({
 })
 results["% Drop"] = ((results["Noiseless Fidelity"] - results["Noisy Fidelity"]) /
                      results["Noiseless Fidelity"]) * 100
+print("Evaluated each circuit's fitness under both conditions.")
 
 # ---------------------------
 # STEP 7: Evaluate the QFT Circuit Itself
@@ -109,6 +115,7 @@ qft_row = {"Circuit Number": "QFT Circuit",
            "% Drop": qft_drop}
 
 results = pd.concat([pd.DataFrame([qft_row]), results], ignore_index=True)
+print("Evaluated the QFT circuit's fitness under both conditions.")
 
 # ---------------------------
 # STEP 8: Create and Plot the Results Table with Rounded Values
