@@ -32,6 +32,24 @@ from qiskit_aer import AerSimulator
 from qiskit.circuit.library import QFT
 from qiskit.quantum_info import state_fidelity
 
+print("Loading backend models")
+
+#New for noise
+from qiskit_aer.noise import NoiseModel
+from qiskit_ibm_runtime import QiskitRuntimeService
+
+# Load IBM Quantum account
+service = QiskitRuntimeService()
+
+# Select a backend
+backend = service.backend('ibm_brisbane')
+
+# Create a noise model from the backend
+noise_model = NoiseModel.from_backend(backend)
+
+print("Loaded backend models")
+
+
 # ---------------------------
 # Global Constants
 # ---------------------------
@@ -49,8 +67,10 @@ PARAMETRISED_GATES = [
 ]
 
 # Qiskit Simulator instance.
-SIMULATOR = AerSimulator(method='density_matrix')
-native_gates = SIMULATOR.configuration().basis_gates
+NOISY_SIMULATOR = AerSimulator(noise_model=noise_model, method='statevector')
+NOISLESS_SIMULATOR = AerSimulator(method='statevector')
+
+native_gates = NOISLESS_SIMULATOR.configuration().basis_gates
 
 # Fitness Cache
 fitness_cache = {}
@@ -83,7 +103,6 @@ def parse_gate_spec(gate_spec):
         return gate, converted_args
     else:
         return gate_spec, None
-
 
 def build_gate_map(circuit):
     """
@@ -124,7 +143,6 @@ def build_gate_map(circuit):
         "rzz": lambda q1, q2, theta: circuit.rzz(theta, q1, q2),
     }
 
-
 def rank_selection(chromosomes, fitnesses):
     """
     Selects one chromosome using linear rank selection.
@@ -158,13 +176,11 @@ def rank_selection(chromosomes, fitnesses):
     # Fallback (rarely triggered due to float rounding):
     return copy_chromosome(chromosomes[sorted_indices[-1]])
 
-
 def get_chromosome_key(chromosome):
     """
     Convert a chromosome (list of layers) into a hashable tuple-of-tuples.
     """
     return tuple(tuple(layer) for layer in chromosome)
-
 
 def copy_chromosome(chromosome):
     # Slicing each inner list creates a new list while the strings (immutable) remain shared.
@@ -190,7 +206,6 @@ def initialize_chromosomes(population, qubits, initial_circuit_depth):
     return [[create_new_layer(qubits) for _ in range(initial_circuit_depth)]
             for _ in range(population)]
 
-
 def evaluate_random_circuits(population, iterations, qubits, initial_circuit_depth, target_states):
     """
     Evaluate a set of randomly generated circuits.
@@ -212,8 +227,7 @@ def evaluate_random_circuits(population, iterations, qubits, initial_circuit_dep
     fitnesses = get_circuit_fitnesses(target_states, random_circuits, random_chromosomes)
     return max(fitnesses), sum(fitnesses) / len(fitnesses)
 
-
-def get_qft_target_states(qubits, simulator=SIMULATOR):
+def get_qft_target_states(qubits, simulator=NOISLESS_SIMULATOR):
     """
     Simulate the QFT for all computational basis states and return their statevectors.
 
@@ -273,7 +287,7 @@ def get_circuits(chromosome_list):
 # ---------------------------
 # Fitness Functions
 # ---------------------------
-def get_circuit_fitnesses(target_states, circuits, chromosomes, simulator=SIMULATOR, depth_lambda=0.005):
+def get_circuit_fitnesses(target_states, circuits, chromosomes, simulator=NOISY_SIMULATOR, depth_lambda=0.005):
     """
     Evaluate the fitness for each circuit (corresponding to the provided chromosomes).
     For chromosomes that have been evaluated before, use the cached fitness.
@@ -282,18 +296,15 @@ def get_circuit_fitnesses(target_states, circuits, chromosomes, simulator=SIMULA
         target_states (list): List of target density matrices.
         circuits (list): List of QuantumCircuit objects.
         chromosomes (list): List of chromosome representations corresponding to the circuits.
-        initial_states (list): List of initial state representations (ignored now).
         simulator (AerSimulator): The Qiskit simulator.
     
     Returns:
         list: Fitness values for each circuit.
     """
-    # Preallocate fitness list.
     fitnesses = [None] * len(circuits)
-    # Prepare a batch for circuits that need evaluation.
     batch_circuits = []
     batch_indices = []
-    # Instead of using the provided initial_states, we now use all computational basis states.
+    # Use all computational basis states; group_size is 2^(number of qubits)
     group_size = 2 ** len(circuits[0].qregs[0])
     
     for i, circuit in enumerate(circuits):
@@ -302,9 +313,9 @@ def get_circuit_fitnesses(target_states, circuits, chromosomes, simulator=SIMULA
             fitnesses[i] = fitness_cache[key]
         else:
             batch_indices.append(i)
-            # Transpile the circuit once per chromosome.
+            # Transpile the circuit once for this chromosome
             transpiled_circuit = transpile(circuit, basis_gates=native_gates)
-            # For each computational basis state, prepare that state using x gates.
+            # For each computational basis state, prepare that state using X gates.
             for idx in range(group_size):
                 new_circuit = QuantumCircuit(*circuit.qregs)
                 binary_str = format(idx, f'0{len(circuit.qregs[0])}b')
@@ -318,7 +329,6 @@ def get_circuit_fitnesses(target_states, circuits, chromosomes, simulator=SIMULA
     if batch_circuits:
         results = simulator.run(batch_circuits).result()
         output_states = [results.data(j)['density_matrix'] for j in range(len(batch_circuits))]
-        # For each chromosome that needed evaluation, compute its fitness.
         for count, i in enumerate(batch_indices):
             start = count * group_size
             end = start + group_size
@@ -387,7 +397,6 @@ def apply_genetic_operators(
     
     return elites + new_population
 
-
 def crossover(parent_1, parent_2):
     """
     Perform single-point crossover between two chromosomes.
@@ -403,7 +412,6 @@ def crossover(parent_1, parent_2):
     child_1 = parent_1[:crossover_point] + parent_2[crossover_point:]
     child_2 = parent_2[:crossover_point] + parent_1[crossover_point:]
     return child_1, child_2
-
 
 def mutate_chromosome(chromosome, parameter_mutation_rate, gate_mutation_rate,
                       layer_mutation_rate, max_parameter_mutation, layer_deletion_rate):
@@ -474,7 +482,6 @@ def mutate_chromosome(chromosome, parameter_mutation_rate, gate_mutation_rate,
         new_layer = create_new_layer(len(chromosome[0]))
         chromosome.append(new_layer)
     return chromosome
-
 
 def create_new_layer(qubits):
     """
