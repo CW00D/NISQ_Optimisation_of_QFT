@@ -16,10 +16,7 @@ env/
 Thumbs.db
 
 # Logs
-Experiment Results/Charts/
-Experiment Results/Chromosomes/
-Experiment Results/Logs/
-*.log
+Experiment Results/*
 
 # Experiment data and outputs
 experiments/data/

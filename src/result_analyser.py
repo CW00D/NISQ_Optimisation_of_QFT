@@ -15,9 +15,10 @@ from optimiser_noisy import get_circuits
 # STEP 1: Load the CSV file with circuit chromosomes
 # ---------------------------
 
-csv_file_path = r"Experiment Results\\Chromosomes\\Optimiser_simple\\2025-03-04_13-39.csv"
-#csv_file_path = r"Experiment Results\\Chromosomes\\Optimiser_noisy\\2025-03-04_12-00.csv"
+#csv_file_path = r"Experiment Results\\Chromosomes\\Optimiser_simple\\2025-03-04_13-39.csv"
+csv_file_path = r"Experiment Results\\Chromosomes\\Optimiser_noisy\\2025-03-04_12-00.csv"
 #csv_file_path = r"Experiment Results\\Chromosomes\\Optimiser_depth_reduction\\2025-03-04_12-00.csv"
+#csv_file_path = r"Experiment Results\\Chromosomes\\Optimiser_noisy_depth_reduction\\2025-03-04_12-00.csv"
 
 
 df = pd.read_csv(csv_file_path)
@@ -79,6 +80,8 @@ def evaluate_circuit_fitness(circuit, simulator, num_qubits, target_states):
         state = result.data(0)['density_matrix']
         fidelity = state_fidelity(state, target_state)
         fitness_total += fidelity
+    print(f"Evaluated circuit fitness: {fitness_total / (2 ** num_qubits)}")
+    print(circuit)
     return fitness_total / (2 ** num_qubits)
     
 # ---------------------------
