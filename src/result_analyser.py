@@ -10,15 +10,22 @@ from qiskit.circuit.library import QFT
 from qiskit_ibm_runtime import QiskitRuntimeService
 # Import your circuit conversion function from your EA module.
 from optimiser_noisy import get_circuits
+import os
+
+def evaluate_noisy_fitness_multiple_times(circuit, simulator, num_qubits, target_states, num_evaluations=20):
+    total_fitness = 0.0
+    for _ in range(num_evaluations):
+        total_fitness += evaluate_circuit_fitness(circuit, simulator, num_qubits, target_states)
+    return total_fitness / num_evaluations
 
 # ---------------------------
 # STEP 1: Load the CSV file with circuit chromosomes
 # ---------------------------
 
-#csv_file_path = r"Experiment Results\\Chromosomes\\Optimiser_simple\\2025-03-04_13-39.csv"
-csv_file_path = r"Experiment Results\\Chromosomes\\Optimiser_noisy\\2025-03-04_12-00.csv"
-#csv_file_path = r"Experiment Results\\Chromosomes\\Optimiser_depth_reduction\\2025-03-04_12-00.csv"
-#csv_file_path = r"Experiment Results\\Chromosomes\\Optimiser_noisy_depth_reduction\\2025-03-04_12-00.csv"
+csv_file_path = r"Experiment Results\\Optimiser_simple\\Simulation_2025-03-05_00-27\\2025-03-05_00-27_final_chromosomes.csv"
+##csv_file_path = r"Experiment Results\\Optimiser_noisy\\Simulation_2025-03-05_00-28\\2025-03-05_00-28_run0_intermediate.csv"
+##csv_file_path = r"Experiment Results\\Optimiser_depth_reduction\\Simulation_2025-03-05_09-08\\2025-03-05_09-08_final_chromosomes.csv"
+##csv_file_path = r"Experiment Results\\Optimiser_noisy_depth_reduction\\Simulation_2025-03-05_00-28\\2025-03-05_00-28_run0_intermediate.csv"
 
 
 df = pd.read_csv(csv_file_path)
@@ -80,8 +87,8 @@ def evaluate_circuit_fitness(circuit, simulator, num_qubits, target_states):
         state = result.data(0)['density_matrix']
         fidelity = state_fidelity(state, target_state)
         fitness_total += fidelity
-    print(f"Evaluated circuit fitness: {fitness_total / (2 ** num_qubits)}")
-    print(circuit)
+    #print(f"Evaluated circuit fitness: {fitness_total / (2 ** num_qubits)}")
+    #print(circuit)
     return fitness_total / (2 ** num_qubits)
     
 # ---------------------------
@@ -95,7 +102,7 @@ print("Generated the target density matrices for the QFT circuit.")
 # ---------------------------
 noiseless_fidelities = [evaluate_circuit_fitness(circ, noiseless_simulator, num_qubits, target_states)
                         for circ in circuits]
-noisy_fidelities = [evaluate_circuit_fitness(circ, noisy_simulator, num_qubits, target_states)
+noisy_fidelities = [evaluate_noisy_fitness_multiple_times(circ, noisy_simulator, num_qubits, target_states)
                     for circ in circuits]
 
 results = pd.DataFrame({
@@ -113,7 +120,7 @@ print("Evaluated each circuit's fitness under both conditions.")
 qft_circuit = QuantumCircuit(num_qubits)
 qft_circuit.append(QFT(num_qubits=num_qubits), list(range(num_qubits)))
 qft_noiseless = evaluate_circuit_fitness(qft_circuit, noiseless_simulator, num_qubits, target_states)
-qft_noisy = evaluate_circuit_fitness(qft_circuit, noisy_simulator, num_qubits, target_states)
+qft_noisy = evaluate_noisy_fitness_multiple_times(qft_circuit, noisy_simulator, num_qubits, target_states)
 qft_drop = ((qft_noiseless - qft_noisy) / qft_noiseless) * 100 if qft_noiseless != 0 else 0
 
 qft_row = {"Circuit Number": "QFT Circuit",
@@ -145,5 +152,13 @@ for (row, col), cell in table.get_celld().items():
     if row == 1:
         cell.set_facecolor('#add8e6')
 
-plt.title("Circuit Performance: Noiseless vs Noisy Execution")
+simulator_name = csv_file_path.split("\\")[1]
+plt.title(f"{simulator_name} Circuit Performance: Noiseless vs Noisy Execution")
+
+# Extract the directory from the CSV file path
+output_dir = os.path.dirname(csv_file_path)
+output_file_path = os.path.join(output_dir, "results_table.png")
+
+# Save the figure before showing it
+plt.savefig(output_file_path)
 plt.show()
