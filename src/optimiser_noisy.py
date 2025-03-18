@@ -53,6 +53,15 @@ print("Loaded backend models")
 # ---------------------------
 # Global Constants
 # ---------------------------
+POPULATION = 100
+ELITISM_NUMBER = POPULATION // 3
+INITIAL_CIRCUIT_DEPTH = 10
+PARAMETER_MUTATION_RATE = 0.1
+GATE_MUTATION_RATE = 0.3
+LAYER_MUTATION_RATE = 0.2
+MAX_PARAMETER_MUTATION = 0.2
+LAYER_DELETION_RATE = 0.03
+
 SINGLE_QUBIT_GATES = [
     "x", "y", "z", "h", "s", "sdg", "t", "tdg", "rx", "ry", "rz"
 ]
@@ -189,40 +198,37 @@ def copy_chromosome(chromosome):
 # ---------------------------
 # Initialization and Evaluation Functions
 # ---------------------------
-def initialize_chromosomes(population, qubits, initial_circuit_depth):
+def initialize_chromosomes(qubits):
     """
     Initialize a population of chromosomes.
 
     Each chromosome is a list of layers, where each layer is a list of gate specification strings.
 
     Parameters:
-        population (int): Number of chromosomes.
         qubits (int): Number of qubits (i.e. gates per layer).
         initial_circuit_depth (int): Number of layers per chromosome.
 
     Returns:
         list: List of chromosomes.
     """
-    return [[create_new_layer(qubits) for _ in range(initial_circuit_depth)]
-            for _ in range(population)]
+    return [[create_new_layer(qubits) for _ in range(INITIAL_CIRCUIT_DEPTH)]
+            for _ in range(POPULATION)]
 
-def evaluate_random_circuits(population, iterations, qubits, initial_circuit_depth, target_states):
+def evaluate_random_circuits(iterations, qubits, target_states):
     """
     Evaluate a set of randomly generated circuits.
 
     Parameters:
-        population (int): Number of circuits to evaluate per iteration.
         iterations (int): Number of iterations.
         qubits (int): Number of qubits.
-        initial_circuit_depth (int): Circuit depth.
         initial_states (list): List of initial state Statevectors.
         target_states (list): List of target state Statevectors (from QFT).
 
     Returns:
         tuple: (max_fitness, average_fitness) over the evaluated circuits.
     """
-    random_chromosomes = [[create_new_layer(qubits) for _ in range(initial_circuit_depth)]
-                       for _ in range(population * iterations)]
+    random_chromosomes = [[create_new_layer(qubits) for _ in range(INITIAL_CIRCUIT_DEPTH)]
+                       for _ in range(POPULATION * iterations)]
     random_circuits = get_circuits(random_chromosomes)
     fitnesses = get_circuit_fitnesses(target_states, random_circuits, random_chromosomes)
     return max(fitnesses), sum(fitnesses) / len(fitnesses)
@@ -361,33 +367,25 @@ def compute_fidelity(circuit_states, target_states):
 # Genetic Operators
 # ---------------------------
 def apply_genetic_operators(
-    chromosomes, fitnesses, elite_count, parameter_mutation_rate, gate_mutation_rate,
-    layer_mutation_rate, max_parameter_mutation, layer_deletion_rate
-):
+    chromosomes, fitnesses):
     """
-    Creates a new population by preserving 'elite_count' top individuals,
+    Creates a new population by preserving 'ELITISM_NUMBER' top individuals,
     then using rank selection to fill the rest.
     """
     # Identify elites
     sorted_indices = sorted(range(len(fitnesses)), key=lambda i: fitnesses[i], reverse=True)
-    elites = [copy_chromosome(chromosomes[i]) for i in sorted_indices[:elite_count]]
+    elites = [copy_chromosome(chromosomes[i]) for i in sorted_indices[:ELITISM_NUMBER]]
     
     # Generate the remaining population with rank selection
     new_population = []
-    remaining = len(chromosomes) - elite_count
+    remaining = len(chromosomes) - ELITISM_NUMBER
     while len(new_population) < remaining:
         parent1 = rank_selection(chromosomes, fitnesses)
         parent2 = rank_selection(chromosomes, fitnesses)
         child1, child2 = crossover(parent1, parent2)
         
-        child1 = mutate_chromosome(
-            child1, parameter_mutation_rate, gate_mutation_rate,
-            layer_mutation_rate, max_parameter_mutation, layer_deletion_rate
-        )
-        child2 = mutate_chromosome(
-            child2, parameter_mutation_rate, gate_mutation_rate,
-            layer_mutation_rate, max_parameter_mutation, layer_deletion_rate
-        )
+        child1 = mutate_chromosome(child1)
+        child2 = mutate_chromosome(child2)
         
         new_population.append(child1)
         if len(new_population) < remaining:
@@ -411,28 +409,27 @@ def crossover(parent_1, parent_2):
     child_2 = parent_2[:crossover_point] + parent_1[crossover_point:]
     return child_1, child_2
 
-def mutate_chromosome(chromosome, parameter_mutation_rate, gate_mutation_rate,
-                      layer_mutation_rate, max_parameter_mutation, layer_deletion_rate):
+def mutate_chromosome(chromosome):
     """
     Mutate a single chromosome by modifying gate types, parameters, or layers.
 
     Parameters:
         chromosome (list): The chromosome to mutate.
-        parameter_mutation_rate (float): Rate of parameter mutation.
-        gate_mutation_rate (float): Rate of gate type mutation.
-        layer_mutation_rate (float): Probability of adding a new layer.
-        max_parameter_mutation (float): Maximum factor for parameter mutation.
-        layer_deletion_rate (float): Probability of deleting an entire layer.
+        PARAMETER_MUTATION_RATE (float): Rate of parameter mutation.
+        GATE_MUTATION_RATE (float): Rate of gate type mutation.
+        LAYER_MUTATION_RATE (float): Probability of adding a new layer.
+        MAX_PARAMETER_MUTATION (float): Maximum factor for parameter mutation.
+        LAYER_DELETION_RATE (float): Probability of deleting an entire layer.
 
     Returns:
         list: Mutated chromosome.
     """
     for i, layer in enumerate(chromosome):
-        if np.random.rand() < layer_deletion_rate:
+        if np.random.rand() < LAYER_DELETION_RATE:
             chromosome[i] = ["w"] * len(layer)
             continue
         for j in range(len(layer)):
-            if np.random.rand() < gate_mutation_rate:
+            if np.random.rand() < GATE_MUTATION_RATE:
                 gate_type = np.random.choice(["single", "double", "triple", "remove"])
                 if gate_type == "remove":
                     layer[j] = "w"
@@ -462,13 +459,13 @@ def mutate_chromosome(chromosome, parameter_mutation_rate, gate_mutation_rate,
                         layer[qubit_3] = f"{gate_choice}({qubit_1},{qubit_2},{qubit_3})"
                     layer[qubit_1] = "-"
                     layer[qubit_2] = "-"
-            elif np.random.rand() < parameter_mutation_rate:
+            elif np.random.rand() < PARAMETER_MUTATION_RATE:
                 match = re.match(r"([a-z]+)\((.*)\)", layer[j])
                 if match and match.group(1) in PARAMETRISED_GATES:
                     gate_name, params_str = match.groups()
                     params_list = [p.strip() for p in params_str.split(",")]
                     param_value = float(params_list[-1])
-                    factor = np.random.uniform(1, max_parameter_mutation)
+                    factor = np.random.uniform(1, MAX_PARAMETER_MUTATION)
                     if np.random.rand() < 0.5:
                         param_value *= factor
                     else:
@@ -476,7 +473,7 @@ def mutate_chromosome(chromosome, parameter_mutation_rate, gate_mutation_rate,
                     param_value = max(param_value, 0.0)
                     params_list[-1] = str(param_value)
                     layer[j] = f"{gate_name}({','.join(params_list)})"
-    if np.random.rand() < layer_mutation_rate:
+    if np.random.rand() < LAYER_MUTATION_RATE:
         new_layer = create_new_layer(len(chromosome[0]))
         chromosome.append(new_layer)
     return chromosome

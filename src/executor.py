@@ -12,19 +12,16 @@ from qiskit.quantum_info import Statevector
 # ================================
 # Simulator Selection
 # ================================
-import optimiser_simple as optimiser
+#import optimiser_simple as optimiser
 #import optimiser_noisy as optimiser
 #import optimiser_depth_reduction as optimiser
-#import optimiser_noisy_depth_reduction as optimiser
+import optimiser_noisy_depth_reduction as optimiser
 
 # ================================
 # Global Execution Parameters
 # ================================
-population = 100
 qubits = 3
-initial_circuit_depth = 10
 
-# Random Baseline Parameters
 BASELINE_ITERATIONS = 1000
 N_RANDOM_RUNS = 2
 RANDOM_BASELINE_DIR = "Experiment Results/Random_Baseline"
@@ -45,9 +42,7 @@ def compute_random_baseline(baseline_iterations=BASELINE_ITERATIONS, n_random_ru
         run_random_avg = []
         for i in range(baseline_iterations):
             print(i)
-            random_max_fitness, random_avg_fitness = optimiser.evaluate_random_circuits(
-                population, 1, qubits, initial_circuit_depth, target_states
-            )
+            random_max_fitness, random_avg_fitness = optimiser.evaluate_random_circuits(1, qubits, target_states)
             current_random_max = max(current_random_max, random_max_fitness)
             run_random_max.append(current_random_max)
             run_random_avg.append(random_avg_fitness)
@@ -120,16 +115,13 @@ def save_fitness_values(iteration, fitnesses, fitness_csv_filepath, run):
 # ================================
 # Combined Single EA Run (Parallel Task)
 # ================================
-def run_single_run(run, iterations, population, qubits, initial_circuit_depth,
-                   initial_states, target_states, elitism_number, parameter_mutation_rate,
-                   gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate,
-                   intermediate_chromosome_filepath, fitness_csv_filepath, final_chromosome_filepath):
+def run_single_run(run, iterations, qubits, target_states, intermediate_chromosome_filepath, fitness_csv_filepath, final_chromosome_filepath):
     # Set a unique seed per run for reproducibility.
     seed_value = int(time.time()) + run
     random.seed(seed_value)
     np.random.seed(seed_value)
     
-    chromosomes = optimiser.initialize_chromosomes(population, qubits, initial_circuit_depth)
+    chromosomes = optimiser.initialize_chromosomes(qubits)
     run_ea_max = []
     run_ea_avg = []
     
@@ -150,10 +142,7 @@ def run_single_run(run, iterations, population, qubits, initial_circuit_depth,
             save_intermediate_chromosomes(i, sorted_chromosomes, intermediate_chromosome_filepath)
             save_fitness_values(i, fitnesses, fitness_csv_filepath, run)
         
-        chromosomes = optimiser.apply_genetic_operators(
-            chromosomes, fitnesses, elitism_number, parameter_mutation_rate,
-            gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate
-        )
+        chromosomes = optimiser.apply_genetic_operators(chromosomes, fitnesses)
     
     final_circuits = optimiser.get_circuits(chromosomes)
     final_fitnesses = optimiser.get_circuit_fitnesses(target_states, final_circuits, chromosomes)
@@ -211,15 +200,7 @@ def execute_optimisation(simulation_name, run_number, iterations, n_runs=10):
         futures = []
         for run in range(n_runs):
             futures.append(
-                executor.submit(
-                    run_single_run, run, iterations, population, qubits,
-                    initial_circuit_depth, initial_states, target_states, elitism_number,
-                    parameter_mutation_rate, gate_mutation_rate, layer_mutation_rate,
-                    max_parameter_mutation, layer_deletion_rate,
-                    intermediate_filepaths[run],
-                    fitness_filepaths[run],
-                    final_chromosome_filepaths[run]
-                )
+                executor.submit(run_single_run, run, iterations, qubits, target_states, intermediate_filepaths[run], fitness_filepaths[run], final_chromosome_filepaths[run])
             )
         for future in concurrent.futures.as_completed(futures):
             run_ea_max, run_ea_avg, sorted_final = future.result()
@@ -230,7 +211,6 @@ def execute_optimisation(simulation_name, run_number, iterations, n_runs=10):
     # Average the EA results across runs.
     avg_ea_max = [sum(run[i] for run in all_ea_max) / n_runs for i in range(iterations)]
     avg_ea_avg = [sum(run[i] for run in all_ea_avg) / n_runs for i in range(iterations)]
-    x_values = list(range(iterations))
     
     # Ensure baseline data is long enough
     if len(baseline_max) < iterations:
