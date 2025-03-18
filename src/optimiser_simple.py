@@ -529,8 +529,9 @@ def create_new_layer(qubits):
             else:
                 layer[idx] = "w"  # Not enough free indices.
         else:
-            # For barrier "w" or single-qubit gates.
-            if chosen_gate in PARAMETRISED_GATES:
+            if chosen_gate == "w":
+                layer[idx] = "w"
+            elif chosen_gate in PARAMETRISED_GATES:
                 layer[idx] = f"{chosen_gate}({idx},{np.random.random()})"
             else:
                 layer[idx] = f"{chosen_gate}({idx})"
