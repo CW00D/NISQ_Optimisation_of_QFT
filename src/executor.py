@@ -12,32 +12,23 @@ from qiskit.quantum_info import Statevector
 # ================================
 # Simulator Selection
 # ================================
-#import optimiser_simple as optimiser
-import optimiser_noisy as optimiser
+import optimiser_simple as optimiser
+#import optimiser_noisy as optimiser
 #import optimiser_depth_reduction as optimiser
 #import optimiser_noisy_depth_reduction as optimiser
 
 # ================================
 # Global Execution Parameters
 # ================================
-#population = 100
-population = 1
+population = 100
 qubits = 3
 initial_circuit_depth = 10
 
-# Mutation Parameters
-elitism_number = population // 3      
-parameter_mutation_rate = 0.1
-gate_mutation_rate = 0.3
-layer_mutation_rate = 0.2
-max_parameter_mutation = 0.2
-layer_deletion_rate = 0.03
-
 # Random Baseline Parameters
-BASELINE_ITERATIONS = 20000
-N_RANDOM_RUNS = 10
+BASELINE_ITERATIONS = 1000
+N_RANDOM_RUNS = 2
 RANDOM_BASELINE_DIR = "Experiment Results/Random_Baseline"
-RANDOM_BASELINE_FILE = os.path.join(RANDOM_BASELINE_DIR, "random_baseline.csv")
+RANDOM_BASELINE_FILE = os.path.join(RANDOM_BASELINE_DIR, "random_baseline_" + str(qubits) + "_qubit_simple.csv")
 
 # ================================
 # Random Baseline Functions
@@ -53,6 +44,7 @@ def compute_random_baseline(baseline_iterations=BASELINE_ITERATIONS, n_random_ru
         run_random_max = []
         run_random_avg = []
         for i in range(baseline_iterations):
+            print(i)
             random_max_fitness, random_avg_fitness = optimiser.evaluate_random_circuits(
                 population, 1, qubits, initial_circuit_depth, target_states
             )
@@ -101,35 +93,29 @@ def ensure_random_baseline(baseline_iterations=BASELINE_ITERATIONS, n_random_run
     return baseline_max, baseline_avg
 
 # ================================
-# Chart Plotting Logic
-# ================================
-def plot_iteration_results(timestamp, ea_max, ea_avg, random_max, random_avg, x_values, run_count, iteration_count, output_dir):
-    plt.clf()
-    plt.plot(x_values, ea_max, label="EA Max Fitness", color="blue")
-    plt.plot(x_values, ea_avg, label="EA Avg Fitness", color="blue", linestyle="--")
-    plt.plot(x_values, random_max, label="Random Max Overall Fitness", color="orange")
-    plt.plot(x_values, random_avg, label="Random Avg Fitness", color="orange", linestyle="--")
-    plt.legend(loc='lower center', bbox_to_anchor=(0.5, -0.25), ncol=2)
-    plt.xlabel("Iterations")
-    plt.ylabel("Fitness")
-    plt.ylim(0, 1)
-    plt.title(f"Fitness Over {iteration_count} Iterations (Avg Over {run_count} Runs)")
-    plt.grid(True)
-    os.makedirs(output_dir, exist_ok=True)
-    plt.savefig(os.path.join(output_dir, f"{timestamp}.png"), bbox_inches='tight')
-    plt.close()
-
-# ================================
-# Intermediate Chromosome Saving
+# Saving Intermediate Results
 # ================================
 def save_intermediate_chromosomes(iteration, sorted_chromosomes, chromosome_filepath):
-    mode = "a" if os.path.exists(chromosome_filepath) else "w"
-    with open(chromosome_filepath, mode) as cf:
-        if mode == "w":
-            cf.write("Iteration,Rank,Fitness,Chromosome\n")
+    # Always overwrite the file so that only the latest top 10 chromosomes are saved.
+    with open(chromosome_filepath, "w") as cf:
+        cf.write("Iteration,Rank,Fitness,Chromosome\n")
         for idx, (fitness, chromosome) in enumerate(sorted_chromosomes[:10]):
             cf.write(f"{iteration},{idx},{fitness:.6f},\"{chromosome}\"\n")
-    print(f"Saved intermediate chromosomes at iteration {iteration} to {chromosome_filepath}")
+    print(f"Overwritten intermediate chromosomes at iteration {iteration} to {chromosome_filepath}")
+
+def save_fitness_values(iteration, fitnesses, fitness_csv_filepath, run):
+    """
+    Save the full list of fitness values for the current iteration.
+    The CSV will have columns: Iteration, Run, ChromosomeIndex, Fitness.
+    Appends new rows (writing header only if file does not exist).
+    """
+    write_header = not os.path.exists(fitness_csv_filepath)
+    mode = "a"  # append mode
+    with open(fitness_csv_filepath, mode) as f:
+        if write_header:
+            f.write("Iteration,Run,ChromosomeIndex,Fitness\n")
+        for idx, fit in enumerate(fitnesses):
+            f.write(f"{iteration},{run},{idx},{fit:.6f}\n")
 
 # ================================
 # Combined Single EA Run (Parallel Task)
@@ -137,7 +123,7 @@ def save_intermediate_chromosomes(iteration, sorted_chromosomes, chromosome_file
 def run_single_run(run, iterations, population, qubits, initial_circuit_depth,
                    initial_states, target_states, elitism_number, parameter_mutation_rate,
                    gate_mutation_rate, layer_mutation_rate, max_parameter_mutation, layer_deletion_rate,
-                   intermediate_chromosome_filepath):
+                   intermediate_chromosome_filepath, fitness_csv_filepath, final_chromosome_filepath):
     # Set a unique seed per run for reproducibility.
     seed_value = int(time.time()) + run
     random.seed(seed_value)
@@ -151,6 +137,7 @@ def run_single_run(run, iterations, population, qubits, initial_circuit_depth,
         if i % 100 == 0:
             print(f"Run {run}, iteration {i}")
         circuits = optimiser.get_circuits(chromosomes)
+        # Get full fitness values for all individuals
         fitnesses = optimiser.get_circuit_fitnesses(target_states, circuits, chromosomes)
         max_fitness = max(fitnesses)
         avg_fitness = sum(fitnesses) / len(fitnesses)
@@ -161,13 +148,7 @@ def run_single_run(run, iterations, population, qubits, initial_circuit_depth,
         if i % 100 == 0 or i == iterations - 1:
             sorted_chromosomes = sorted(zip(fitnesses, chromosomes), key=lambda x: x[0], reverse=True)
             save_intermediate_chromosomes(i, sorted_chromosomes, intermediate_chromosome_filepath)
-        
-        # Early stopping if optimum fitness is reached.
-        if max_fitness >= 1:
-            remaining = iterations - i - 1
-            run_ea_max.extend([max_fitness] * remaining)
-            run_ea_avg.extend([avg_fitness] * remaining)
-            break
+            save_fitness_values(i, fitnesses, fitness_csv_filepath, run)
         
         chromosomes = optimiser.apply_genetic_operators(
             chromosomes, fitnesses, elitism_number, parameter_mutation_rate,
@@ -177,28 +158,43 @@ def run_single_run(run, iterations, population, qubits, initial_circuit_depth,
     final_circuits = optimiser.get_circuits(chromosomes)
     final_fitnesses = optimiser.get_circuit_fitnesses(target_states, final_circuits, chromosomes)
     sorted_final = sorted(zip(final_fitnesses, chromosomes), key=lambda x: x[0], reverse=True)
+    
+    # Save the final top 10 chromosomes for this run
+    with open(final_chromosome_filepath, "w") as cf:
+        cf.write("Rank,Fitness,Chromosome\n")
+        for idx, (fitness, chromosome) in enumerate(sorted_final[:10]):
+            cf.write(f"{idx},{fitness:.6f},\"{chromosome}\"\n")
+    print(f"Top chromosomes for run {run} saved in:", final_chromosome_filepath)
+    
     return run_ea_max, run_ea_avg, sorted_final
 
 # ================================
 # Combined Parallel EA Execution
 # ================================
-def execute_optimisation(timestamp, iterations, n_runs=10):
+def execute_optimisation(simulation_name, run_number, iterations, n_runs=10):
     # Create a folder for the specific simulation type (optimiser name)
     sim_type_folder = os.path.join("Experiment Results", optimiser.__name__.capitalize())
     os.makedirs(sim_type_folder, exist_ok=True)
     
-    # Create a simulation folder inside the simulation type folder using the timestamp.
-    simulation_folder = os.path.join(sim_type_folder, f"Simulation_{timestamp}")
+    # Create a simulation folder inside the simulation type folder using the simulation name.
+    simulation_folder = os.path.join(sim_type_folder, simulation_name)
     os.makedirs(simulation_folder, exist_ok=True)
     
     # Define file paths within the simulation folder.
-    log_filepath = os.path.join(simulation_folder, f"{timestamp}.log")
-    chart_output_dir = simulation_folder  # Chart will be saved here.
+    iteration_data_filepath = os.path.join(simulation_folder, f"run{run_number}_iteration_data.csv")
     intermediate_filepaths = [
-        os.path.join(simulation_folder, f"{timestamp}_run{run}_intermediate.csv")
+        os.path.join(simulation_folder, f"run{run_number}_intermediate.csv")
         for run in range(n_runs)
     ]
-    final_chromosome_filepath = os.path.join(simulation_folder, f"{timestamp}_final_chromosomes.csv")
+    
+    fitness_filepaths = [
+        os.path.join(simulation_folder, f"run{run_number}_fitness.csv")
+        for run in range(n_runs)
+    ]
+    final_chromosome_filepaths = [
+        os.path.join(simulation_folder, f"run{run_number}_final_chromosomes.csv")
+        for run in range(n_runs)
+    ]
     
     # Prepare initial and target states.
     initial_states = [Statevector.from_label(f"{i:0{qubits}b}") for i in range(2**qubits)]
@@ -219,7 +215,10 @@ def execute_optimisation(timestamp, iterations, n_runs=10):
                     run_single_run, run, iterations, population, qubits,
                     initial_circuit_depth, initial_states, target_states, elitism_number,
                     parameter_mutation_rate, gate_mutation_rate, layer_mutation_rate,
-                    max_parameter_mutation, layer_deletion_rate, intermediate_filepaths[run]
+                    max_parameter_mutation, layer_deletion_rate,
+                    intermediate_filepaths[run],
+                    fitness_filepaths[run],
+                    final_chromosome_filepaths[run]
                 )
             )
         for future in concurrent.futures.as_completed(futures):
@@ -233,17 +232,19 @@ def execute_optimisation(timestamp, iterations, n_runs=10):
     avg_ea_avg = [sum(run[i] for run in all_ea_avg) / n_runs for i in range(iterations)]
     x_values = list(range(iterations))
     
-    # Write the log file.
-    with open(log_filepath, "w") as log_file:
-        log_file.write("Iteration,EA Max Fitness,EA Avg Fitness,Random Max Fitness,Random Avg Fitness\n")
-        for i in range(iterations):
-            log_file.write(f"{i},{avg_ea_max[i]:.6f},{avg_ea_avg[i]:.6f},{baseline_max[i]:.6f},{baseline_avg[i]:.6f}\n")
+    # Ensure baseline data is long enough
+    if len(baseline_max) < iterations:
+        baseline_max.extend([baseline_max[-1]] * (iterations - len(baseline_max)))
+    if len(baseline_avg) < iterations:
+        baseline_avg.extend([baseline_avg[-1]] * (iterations - len(baseline_avg)))
     
-    # Plot the results.
-    plot_iteration_results(timestamp, avg_ea_max, avg_ea_avg,
-                           baseline_max[:iterations], baseline_avg[:iterations],
-                           x_values, n_runs, iterations, chart_output_dir)
-    print("Optimisation complete. Averaged results saved in:", log_filepath)
+    # Write the iteration data to a CSV file.
+    with open(iteration_data_filepath, "w") as iteration_data_file:
+        iteration_data_file.write("Iteration,EA Max Fitness,EA Avg Fitness,Random Max Fitness,Random Avg Fitness\n")
+        for i in range(iterations):
+            iteration_data_file.write(f"{i},{avg_ea_max[i]:.6f},{avg_ea_avg[i]:.6f},{baseline_max[i]:.6f},{baseline_avg[i]:.6f}\n")
+    
+    print("Optimisation complete. Averaged results saved in:", iteration_data_filepath)
     
     # Display the top 10 circuits overall.
     overall_final_sorted = sorted(overall_final, key=lambda x: x[0], reverse=True)
@@ -255,6 +256,7 @@ def execute_optimisation(timestamp, iterations, n_runs=10):
         print(circuit.draw())
     
     # Save the final top 10 chromosomes.
+    final_chromosome_filepath = os.path.join(simulation_folder, "final_chromosomes.csv")
     with open(final_chromosome_filepath, "w") as cf:
         cf.write("Rank,Fitness,Chromosome\n")
         for idx, (fitness, chromosome) in enumerate(overall_final_sorted[:10]):
@@ -265,6 +267,10 @@ def execute_optimisation(timestamp, iterations, n_runs=10):
 # Main Execution Block
 # ================================
 if __name__ == "__main__":
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
+    simulation_name = str(qubits) + " Qubit Simulation"  # Specify the simulation name
+    run_number = 21  # Specify the run number
     # Adjust iterations and n_runs as needed.
-    execute_optimisation(timestamp, iterations=100, n_runs=1)
+    if qubits == 2:
+        execute_optimisation(simulation_name, run_number, iterations=1000, n_runs=1)
+    if qubits == 3:
+        execute_optimisation(simulation_name, run_number, iterations=20000, n_runs=1)

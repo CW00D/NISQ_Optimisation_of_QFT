@@ -22,7 +22,7 @@ def evaluate_noisy_fitness_multiple_times(circuit, simulator, num_qubits, target
 # STEP 1: Load the CSV file with circuit chromosomes
 # ---------------------------
 
-csv_file_path = r"Experiment Results\\Optimiser_simple\\Simulation_2025-03-05_00-27\\2025-03-05_00-27_final_chromosomes.csv"
+csv_file_path = r"Experiment Results\\Optimiser_depth_reduction\\2 Qubit Simulation\\run2_final_chromosomes.csv"
 ##csv_file_path = r"Experiment Results\\Optimiser_noisy\\Simulation_2025-03-05_00-28\\2025-03-05_00-28_run0_intermediate.csv"
 ##csv_file_path = r"Experiment Results\\Optimiser_depth_reduction\\Simulation_2025-03-05_09-08\\2025-03-05_09-08_final_chromosomes.csv"
 ##csv_file_path = r"Experiment Results\\Optimiser_noisy_depth_reduction\\Simulation_2025-03-05_00-28\\2025-03-05_00-28_run0_intermediate.csv"
