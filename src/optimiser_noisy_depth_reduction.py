@@ -340,7 +340,7 @@ def get_circuit_fitnesses(target_states, circuits, chromosomes, simulator=NOISY_
             end = start + group_size
             circuit_states = output_states[start:end]
             fidelity = compute_fidelity(circuit_states, target_states)
-            depth_penalty = depth_lambda * circuits[i].depth()
+            depth_penalty = depth_lambda * len(chromosomes[i])
             fitness = fidelity - depth_penalty
             key = get_chromosome_key(chromosomes[i])
             fitness_cache[key] = fitness
@@ -416,11 +416,6 @@ def mutate_chromosome(chromosome):
 
     Parameters:
         chromosome (list): The chromosome to mutate.
-        PARAMETER_MUTATION_RATE (float): Rate of parameter mutation.
-        GATE_MUTATION_RATE (float): Rate of gate type mutation.
-        LAYER_MUTATION_RATE (float): Probability of adding a new layer.
-        MAX_PARAMETER_MUTATION (float): Maximum factor for parameter mutation.
-        LAYER_DELETION_RATE (float): Probability of deleting an entire layer.
 
     Returns:
         list: Mutated chromosome.

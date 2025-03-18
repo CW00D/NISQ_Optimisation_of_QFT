@@ -280,7 +280,7 @@ def get_circuits(chromosome_list):
 # ---------------------------
 # Fitness Functions
 # ---------------------------
-def get_circuit_fitnesses(target_states, circuits, chromosomes, simulator=SIMULATOR, depth_lambda=0.05):
+def get_circuit_fitnesses(target_states, circuits, chromosomes, simulator=SIMULATOR, depth_lambda=0.005):
     """
     Evaluate the fitness for each circuit (corresponding to the provided chromosomes).
     For chromosomes that have been evaluated before, use the cached fitness.
