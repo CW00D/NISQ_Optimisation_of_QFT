@@ -406,66 +406,81 @@ def crossover(parent_1, parent_2):
 def mutate_chromosome(chromosome):
     """
     Mutate a single chromosome by modifying gate types, parameters, or layers.
-
+    
+    If a layer is selected for deletion, it is removed from the chromosome.
+    
     Parameters:
         chromosome (list): The chromosome to mutate.
-
+    
     Returns:
         list: Mutated chromosome.
     """
-    for i, layer in enumerate(chromosome):
+    mutated_chromosome = []
+    
+    for layer in chromosome:
+        # If the deletion condition is met, skip this layer entirely.
         if np.random.rand() < LAYER_DELETION_RATE:
-            chromosome[i] = ["w"] * len(layer)
             continue
-        for j in range(len(layer)):
-            if np.random.rand() < GATE_MUTATION_RATE:
-                gate_type = np.random.choice(["single", "double", "triple", "remove"])
-                if gate_type == "remove":
-                    layer[j] = "w"
-                elif gate_type == "single":
-                    gate_choice = np.random.choice(SINGLE_QUBIT_GATES)
-                    if gate_choice in PARAMETRISED_GATES:
-                        layer[j] = f"{gate_choice}({j}, {np.random.random()})"
-                    else:
-                        layer[j] = f"{gate_choice}({j})"
-                elif gate_type == "double":
-                    target_qubit = np.random.randint(0, len(layer))
-                    control_qubit = np.random.randint(0, len(layer))
-                    while control_qubit == target_qubit:
+        else:
+            # Process gate mutations within the layer.
+            for j in range(len(layer)):
+                # Skip if it's a control qubit.
+                if layer[j] == "-":
+                    continue
+                elif np.random.rand() < GATE_MUTATION_RATE:
+                    gate_type = np.random.choice(["single", "double", "triple", "remove"])
+                    if gate_type == "remove":
+                        layer[j] = "w"
+                    elif gate_type == "single":
+                        gate_choice = np.random.choice(SINGLE_QUBIT_GATES)
+                        if gate_choice in PARAMETRISED_GATES:
+                            layer[j] = f"{gate_choice}({j}, {np.random.random()})"
+                        else:
+                            layer[j] = f"{gate_choice}({j})"
+                    elif gate_type == "double":
+                        target_qubit = np.random.randint(0, len(layer))
                         control_qubit = np.random.randint(0, len(layer))
-                    gate_choice = np.random.choice(DOUBLE_QUBIT_GATES)
-                    if gate_choice in PARAMETRISED_GATES:
-                        layer[target_qubit] = f"{gate_choice}({control_qubit},{target_qubit},{np.random.random()})"
-                    else:
-                        layer[target_qubit] = f"{gate_choice}({control_qubit},{target_qubit})"
-                    layer[control_qubit] = "-"
-                elif gate_type == "triple" and len(layer) >= 3:
-                    qubit_1, qubit_2, qubit_3 = np.random.choice(len(layer), size=3, replace=False)
-                    gate_choice = np.random.choice(TRIPLE_QUBIT_GATES)
-                    if gate_choice in PARAMETRISED_GATES:
-                        layer[qubit_3] = f"{gate_choice}({qubit_1},{qubit_2},{qubit_3},{np.random.random()})"
-                    else:
-                        layer[qubit_3] = f"{gate_choice}({qubit_1},{qubit_2},{qubit_3})"
-                    layer[qubit_1] = "-"
-                    layer[qubit_2] = "-"
-            elif np.random.rand() < PARAMETER_MUTATION_RATE:
-                match = re.match(r"([a-z]+)\((.*)\)", layer[j])
-                if match and match.group(1) in PARAMETRISED_GATES:
-                    gate_name, params_str = match.groups()
-                    params_list = [p.strip() for p in params_str.split(",")]
-                    param_value = float(params_list[-1])
-                    factor = np.random.uniform(1, MAX_PARAMETER_MUTATION)
-                    if np.random.rand() < 0.5:
-                        param_value *= factor
-                    else:
-                        param_value /= factor
-                    param_value = max(param_value, 0.0)
-                    params_list[-1] = str(param_value)
-                    layer[j] = f"{gate_name}({','.join(params_list)})"
+                        while control_qubit == target_qubit:
+                            control_qubit = np.random.randint(0, len(layer))
+                        gate_choice = np.random.choice(DOUBLE_QUBIT_GATES)
+                        if gate_choice in PARAMETRISED_GATES:
+                            layer[target_qubit] = f"{gate_choice}({control_qubit},{target_qubit},{np.random.random()})"
+                        else:
+                            layer[target_qubit] = f"{gate_choice}({control_qubit},{target_qubit})"
+                        layer[control_qubit] = "-"
+                    elif gate_type == "triple" and len(layer) >= 3:
+                        qubit_1, qubit_2, qubit_3 = np.random.choice(len(layer), size=3, replace=False)
+                        gate_choice = np.random.choice(TRIPLE_QUBIT_GATES)
+                        if gate_choice in PARAMETRISED_GATES:
+                            layer[qubit_3] = f"{gate_choice}({qubit_1},{qubit_2},{qubit_3},{np.random.random()})"
+                        else:
+                            layer[qubit_3] = f"{gate_choice}({qubit_1},{qubit_2},{qubit_3})"
+                        layer[qubit_1] = "-"
+                        layer[qubit_2] = "-"
+                elif np.random.rand() < PARAMETER_MUTATION_RATE:
+                    match = re.match(r"([a-z]+)\((.*)\)", layer[j])
+                    if match and match.group(1) in PARAMETRISED_GATES:
+                        gate_name, params_str = match.groups()
+                        params_list = [p.strip() for p in params_str.split(",")]
+                        param_value = float(params_list[-1])
+                        factor = np.random.uniform(1, MAX_PARAMETER_MUTATION)
+                        if np.random.rand() < 0.5:
+                            param_value *= factor
+                        else:
+                            param_value /= factor
+                        param_value = max(param_value, 0.0)
+                        params_list[-1] = str(param_value)
+                        layer[j] = f"{gate_name}({','.join(params_list)})"
+            # Add the (possibly mutated) layer to the new chromosome.
+            mutated_chromosome.append(layer)
+    
+    # Potentially add a new layer.
     if np.random.rand() < LAYER_MUTATION_RATE:
+        # Assuming chromosome isn't empty; if it might be, adjust accordingly.
         new_layer = create_new_layer(len(chromosome[0]))
-        chromosome.append(new_layer)
-    return chromosome
+        mutated_chromosome.append(new_layer)
+    
+    return mutated_chromosome
 
 
 def create_new_layer(qubits):
@@ -498,38 +513,56 @@ def create_new_layer(qubits):
     
     while free_indices:
         idx = free_indices.pop(0)
+        
+        # Skip if this qubit has already been assigned as a control ("-")
+        if layer[idx] is not None:
+            continue
+        
         chosen_gate = random.choices(available_gates, weights=weights, k=1)[0]
         
         if chosen_gate in DOUBLE_QUBIT_GATES:
             if free_indices:
                 partner = random.choice(free_indices)
                 free_indices.remove(partner)
+                
                 if chosen_gate in PARAMETRISED_GATES:
                     layer[idx] = f"{chosen_gate}({partner},{idx},{np.random.random()})"
                 else:
                     layer[idx] = f"{chosen_gate}({partner},{idx})"
-                layer[partner] = "-"  # Mark the partner position as control.
+                
+                # Mark the control qubit, ensuring it hasn’t been assigned anything else
+                if layer[partner] is None:
+                    layer[partner] = "-"
             else:
                 layer[idx] = "w"  # Not enough free indices.
+        
         elif chosen_gate in TRIPLE_QUBIT_GATES:
             if len(free_indices) >= 2:
                 partners = random.sample(free_indices, 2)
                 for p in partners:
                     free_indices.remove(p)
+                
                 if chosen_gate in PARAMETRISED_GATES:
                     layer[idx] = f"{chosen_gate}({partners[0]},{partners[1]},{idx},{np.random.random()})"
                 else:
                     layer[idx] = f"{chosen_gate}({partners[0]},{partners[1]},{idx})"
-                # Mark both partner positions as controls.
-                layer[partners[0]] = "-"
-                layer[partners[1]] = "-"
+                
+                # Mark both partner positions as controls, ensuring they are not overwritten
+                if layer[partners[0]] is None:
+                    layer[partners[0]] = "-"
+                if layer[partners[1]] is None:
+                    layer[partners[1]] = "-"
             else:
                 layer[idx] = "w"  # Not enough free indices.
+        
         else:
-            if chosen_gate == "w":
-                layer[idx] = "w"
-            elif chosen_gate in PARAMETRISED_GATES:
-                layer[idx] = f"{chosen_gate}({idx},{np.random.random()})"
-            else:
-                layer[idx] = f"{chosen_gate}({idx})"
+            # Ensure we only assign a gate to an unoccupied spot
+            if layer[idx] is None:
+                if chosen_gate == "w":
+                    layer[idx] = "w"
+                elif chosen_gate in PARAMETRISED_GATES:
+                    layer[idx] = f"{chosen_gate}({idx},{np.random.random()})"
+                else:
+                    layer[idx] = f"{chosen_gate}({idx})"
+    
     return layer
