@@ -383,7 +383,6 @@ def apply_genetic_operators(chromosomes, fitnesses):
     
     return elites + new_population
 
-
 def crossover(parent_1, parent_2):
     """
     Perform single-point crossover between two chromosomes.
@@ -395,11 +394,13 @@ def crossover(parent_1, parent_2):
     Returns:
         tuple: Two child chromosomes.
     """
-    crossover_point = np.random.randint(1, len(parent_1))
-    child_1 = parent_1[:crossover_point] + parent_2[crossover_point:]
-    child_2 = parent_2[:crossover_point] + parent_1[crossover_point:]
+    if len(parent_1) > 1:
+        crossover_point = np.random.randint(1, len(parent_1))
+        child_1 = parent_1[:crossover_point] + parent_2[crossover_point:]
+        child_2 = parent_2[:crossover_point] + parent_1[crossover_point:]
+    else:
+        child_1, child_2 = parent_1, parent_2
     return child_1, child_2
-
 
 def mutate_chromosome(chromosome):
     """
@@ -478,8 +479,11 @@ def mutate_chromosome(chromosome):
         new_layer = create_new_layer(len(chromosome[0]))
         mutated_chromosome.append(new_layer)
     
+    # If the resulting chromosome is empty, replace it with a new randomly generated chromosome.
+    if not mutated_chromosome:
+        mutated_chromosome = initialize_chromosomes(len(chromosome[0]))[0]
+    
     return mutated_chromosome
-
 
 def create_new_layer(qubits):
     """

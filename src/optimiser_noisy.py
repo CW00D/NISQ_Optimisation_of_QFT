@@ -35,20 +35,53 @@ from qiskit.quantum_info import state_fidelity
 print("Loading backend models")
 
 #New for noise
-from qiskit_aer.noise import NoiseModel
-from qiskit_ibm_runtime import QiskitRuntimeService
+#from qiskit_aer.noise import NoiseModel
+#from qiskit_ibm_runtime import QiskitRuntimeService
+#
+## Load IBM Quantum account
+#service = QiskitRuntimeService()
+#
+## Select a backend
+#backend = service.backend('ibm_brisbane')
+#
+## Create a noise model from the backend
+#noise_model = NoiseModel.from_backend(backend)
+#
+#print("Loaded backend models")
 
-# Load IBM Quantum account
-service = QiskitRuntimeService()
+# Custom noise model
+from qiskit_aer.noise import NoiseModel, depolarizing_error
+from qiskit_aer.noise.errors import ReadoutError
 
-# Select a backend
-backend = service.backend('ibm_brisbane')
+# Define scaled-up error rates for your gates.
+single_qubit_error_rate = 0.02  # Example: 2% error for single-qubit gates
+two_qubit_error_rate = 0.05     # Example: 5% error for two-qubit gates
 
-# Create a noise model from the backend
-noise_model = NoiseModel.from_backend(backend)
+# Create a custom noise model.
+noise_model = NoiseModel()
 
-print("Loaded backend models")
+# Create depolarizing errors for one- and two-qubit gates.
+error_1q = depolarizing_error(single_qubit_error_rate, 1)
+error_2q = depolarizing_error(two_qubit_error_rate, 2)
 
+# Use your predefined lists of gates:
+SINGLE_QUBIT_GATES = ["x", "y", "z", "h", "s", "sdg", "t", "tdg", "rx", "ry", "rz"]
+DOUBLE_QUBIT_GATES = ["cx", "cy", "cz", "swap", "crx", "cry", "crz", "cp", "rxx", "ryy", "rzz"]
+
+# Add the depolarizing errors for single-qubit gates.
+for gate in SINGLE_QUBIT_GATES:
+    noise_model.add_all_qubit_quantum_error(error_1q, gate)
+
+# Add the depolarizing errors for two-qubit gates.
+for gate in DOUBLE_QUBIT_GATES:
+    noise_model.add_all_qubit_quantum_error(error_2q, gate)
+
+# Optionally, add a simple readout error.
+readout_error = ReadoutError([[0.97, 0.03], [0.03, 0.97]])
+noise_model.add_all_qubit_readout_error(readout_error)
+
+# Now create your simulator with this custom noise model.
+NOISY_SIMULATOR = AerSimulator(noise_model=noise_model, method='statevector')
 
 # ---------------------------
 # Global Constants
@@ -366,8 +399,7 @@ def compute_fidelity(circuit_states, target_states):
 # ---------------------------
 # Genetic Operators
 # ---------------------------
-def apply_genetic_operators(
-    chromosomes, fitnesses):
+def apply_genetic_operators(chromosomes, fitnesses):
     """
     Creates a new population by preserving 'ELITISM_NUMBER' top individuals,
     then using rank selection to fill the rest.
@@ -393,7 +425,6 @@ def apply_genetic_operators(
     
     return elites + new_population
 
-
 def crossover(parent_1, parent_2):
     """
     Perform single-point crossover between two chromosomes.
@@ -405,11 +436,13 @@ def crossover(parent_1, parent_2):
     Returns:
         tuple: Two child chromosomes.
     """
-    crossover_point = np.random.randint(1, len(parent_1))
-    child_1 = parent_1[:crossover_point] + parent_2[crossover_point:]
-    child_2 = parent_2[:crossover_point] + parent_1[crossover_point:]
+    if len(parent_1) > 1:
+        crossover_point = np.random.randint(1, len(parent_1))
+        child_1 = parent_1[:crossover_point] + parent_2[crossover_point:]
+        child_2 = parent_2[:crossover_point] + parent_1[crossover_point:]
+    else:
+        child_1, child_2 = parent_1, parent_2
     return child_1, child_2
-
 
 def mutate_chromosome(chromosome):
     """
@@ -488,8 +521,11 @@ def mutate_chromosome(chromosome):
         new_layer = create_new_layer(len(chromosome[0]))
         mutated_chromosome.append(new_layer)
     
+    # If the resulting chromosome is empty, replace it with a new randomly generated chromosome.
+    if not mutated_chromosome:
+        mutated_chromosome = initialize_chromosomes(len(chromosome[0]))[0]
+    
     return mutated_chromosome
-
 
 def create_new_layer(qubits):
     """
