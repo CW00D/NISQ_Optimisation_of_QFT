@@ -12,15 +12,15 @@ from qiskit.quantum_info import Statevector
 # ================================
 # Simulator Selection
 # ================================
-#import optimiser_simple as optimiser
-#import optimiser_noisy as optimiser
-#import optimiser_depth_reduction as optimiser
+#import optimiser_simple as optimiser ##
+#import optimiser_noisy as optimiser ##
+#import optimiser_depth_reduction as optimiser ##
 import optimiser_noisy_depth_reduction as optimiser
 
 # ================================
 # Global Execution Parameters
 # ================================
-qubits = 3
+qubits = 2
 
 BASELINE_ITERATIONS = 1000
 N_RANDOM_RUNS = 2
@@ -160,7 +160,7 @@ def run_single_run(run, iterations, qubits, target_states, intermediate_chromoso
 # ================================
 # Combined Parallel EA Execution
 # ================================
-def execute_optimisation(simulation_name, run_number, iterations, n_runs=10):
+def execute_optimisation(simulation_name, iterations, n_runs=10):
     # Create a folder for the specific simulation type (optimiser name)
     sim_type_folder = os.path.join("Experiment Results", optimiser.__name__.capitalize())
     os.makedirs(sim_type_folder, exist_ok=True)
@@ -169,19 +169,28 @@ def execute_optimisation(simulation_name, run_number, iterations, n_runs=10):
     simulation_folder = os.path.join(sim_type_folder, simulation_name)
     os.makedirs(simulation_folder, exist_ok=True)
     
-    # Define file paths within the simulation folder.
-    iteration_data_filepath = os.path.join(simulation_folder, f"run{run_number}_iteration_data.csv")
+    # Create a Data folder inside the simulation folder.
+    data_folder = os.path.join(simulation_folder, "Data")
+    os.makedirs(data_folder, exist_ok=True)
+    
+    # Determine the next run number
+    existing_files = os.listdir(data_folder)
+    run_numbers = [int(f.split('_')[0][3:]) for f in existing_files if f.startswith('run') and f.split('_')[0][3:].isdigit()]
+    run_number = max(run_numbers, default=0) + 1
+    
+    # Define file paths within the Data folder.
+    iteration_data_filepath = os.path.join(data_folder, f"run{run_number}_iteration_data.csv")
     intermediate_filepaths = [
-        os.path.join(simulation_folder, f"run{run_number}_intermediate.csv")
+        os.path.join(data_folder, f"run{run_number}_intermediate.csv")
         for run in range(n_runs)
     ]
     
     fitness_filepaths = [
-        os.path.join(simulation_folder, f"run{run_number}_fitness.csv")
+        os.path.join(data_folder, f"run{run_number}_fitness.csv")
         for run in range(n_runs)
     ]
     final_chromosome_filepaths = [
-        os.path.join(simulation_folder, f"run{run_number}_final_chromosomes.csv")
+        os.path.join(data_folder, f"run{run_number}_final_chromosomes.csv")
         for run in range(n_runs)
     ]
     
@@ -234,23 +243,14 @@ def execute_optimisation(simulation_name, run_number, iterations, n_runs=10):
         circuit = optimiser.get_circuits([chromosome])[0]
         print(f"\nCircuit {idx} (Fitness: {fitness:.6f}):")
         print(circuit.draw())
-    
-    # Save the final top 10 chromosomes.
-    final_chromosome_filepath = os.path.join(simulation_folder, "final_chromosomes.csv")
-    with open(final_chromosome_filepath, "w") as cf:
-        cf.write("Rank,Fitness,Chromosome\n")
-        for idx, (fitness, chromosome) in enumerate(overall_final_sorted[:10]):
-            cf.write(f"{idx},{fitness:.6f},\"{chromosome}\"\n")
-    print("Top chromosomes saved in:", final_chromosome_filepath)
 
 # ================================
 # Main Execution Block
 # ================================
 if __name__ == "__main__":
     simulation_name = str(qubits) + " Qubit Simulation"  # Specify the simulation name
-    run_number = 21  # Specify the run number
     # Adjust iterations and n_runs as needed.
     if qubits == 2:
-        execute_optimisation(simulation_name, run_number, iterations=1000, n_runs=1)
+        execute_optimisation(simulation_name, iterations=1000, n_runs=1)
     if qubits == 3:
-        execute_optimisation(simulation_name, run_number, iterations=20000, n_runs=1)
+        execute_optimisation(simulation_name, iterations=20000, n_runs=1)

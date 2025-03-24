@@ -32,7 +32,9 @@ from qiskit_aer import AerSimulator
 from qiskit.circuit.library import QFT
 from qiskit.quantum_info import state_fidelity
 
+# ---------------------------
 # Custom noise model
+# ---------------------------
 from qiskit_aer.noise import NoiseModel, depolarizing_error, amplitude_damping_error, phase_damping_error
 
 # Define error rates (adjust these to exaggerate the noise effects)
