@@ -4,10 +4,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from qiskit import QuantumCircuit, transpile
 from qiskit_aer import AerSimulator
-from qiskit_aer.noise import NoiseModel
+from qiskit_aer.noise import NoiseModel, depolarizing_error, amplitude_damping_error, phase_damping_error
 from qiskit.quantum_info import state_fidelity
 from qiskit.circuit.library import QFT
-from qiskit_ibm_runtime import QiskitRuntimeService
 # Import your circuit conversion function from your EA module.
 from optimiser_noisy import get_circuits
 import os
@@ -22,10 +21,10 @@ def evaluate_noisy_fitness_multiple_times(circuit, simulator, num_qubits, target
 # STEP 1: Load the CSV file with circuit chromosomes
 # ---------------------------
 
-csv_file_path = r"Experiment Results\\Optimiser_depth_reduction\\2 Qubit Simulation\\run2_final_chromosomes.csv"
-##csv_file_path = r"Experiment Results\\Optimiser_noisy\\Simulation_2025-03-05_00-28\\2025-03-05_00-28_run0_intermediate.csv"
-##csv_file_path = r"Experiment Results\\Optimiser_depth_reduction\\Simulation_2025-03-05_09-08\\2025-03-05_09-08_final_chromosomes.csv"
-##csv_file_path = r"Experiment Results\\Optimiser_noisy_depth_reduction\\Simulation_2025-03-05_00-28\\2025-03-05_00-28_run0_intermediate.csv"
+#csv_file_path = r"Experiment Results\\Optimiser_simple\\2 Qubit Simulation\\run2_final_chromosomes.csv"
+#csv_file_path = r"Experiment Results\\Optimiser_depth_reduction\\2 Qubit Simulation\\run3_final_chromosomes.csv"
+#csv_file_path = r"Experiment Results\\Optimiser_noisy\\2 Qubit Simulation\\run1_final_chromosomes.csv"
+csv_file_path = r"Experiment Results\\Optimiser_noisy_depth_reduction\\2 Qubit Simulation\\run1_final_chromosomes.csv"
 
 
 df = pd.read_csv(csv_file_path)
@@ -44,9 +43,46 @@ print(f"Converted the top chromosomes to QuantumCircuit objects with {num_qubits
 # ---------------------------
 # STEP 3: Set up Simulators (Noiseless & Noisy)
 # ---------------------------
-service = QiskitRuntimeService()
-backend = service.backend('ibm_brisbane')
-noise_model = NoiseModel.from_backend(backend)
+# Noisy Simulator
+# Define error rates (adjust these to exaggerate the noise effects)
+single_qubit_depol_rate = 0.02  # 2% depolarizing error for single-qubit gates
+two_qubit_depol_rate = 0.05     # 5% depolarizing error for two-qubit gates
+
+# Amplitude and phase damping parameters (gamma values)
+# These represent the probability of energy relaxation or phase loss during a gate
+amplitude_damp_gamma = 0.01     # 1% amplitude damping error
+phase_damp_gamma = 0.01         # 1% phase damping error
+
+# Create a new custom noise model
+noise_model = NoiseModel()
+
+# For single-qubit operations, we combine the following noise channels:
+# 1. Depolarizing error
+# 2. Amplitude damping
+# 3. Phase damping
+error_1q_depol = depolarizing_error(single_qubit_depol_rate, 1)
+error_1q_amp = amplitude_damping_error(amplitude_damp_gamma)
+error_1q_phase = phase_damping_error(phase_damp_gamma)
+
+# Combine them sequentially (order can be adjusted; here we assume they occur in sequence)
+error_1q = error_1q_depol.compose(error_1q_amp).compose(error_1q_phase)
+
+# For two-qubit operations, we use depolarizing noise as a baseline.
+error_2q = depolarizing_error(two_qubit_depol_rate, 2)
+
+# Define the gate sets for single-qubit and two-qubit operations.
+SINGLE_QUBIT_GATES = ["x", "y", "z", "h", "s", "sdg", "t", "tdg", "rx", "ry", "rz"]
+DOUBLE_QUBIT_GATES = ["cx", "cy", "cz", "swap", "crx", "cry", "crz", "cp", "rxx", "ryy", "rzz"]
+
+# Apply the single-qubit noise to all single-qubit gates.
+for gate in SINGLE_QUBIT_GATES:
+    noise_model.add_all_qubit_quantum_error(error_1q, gate)
+
+# Apply the two-qubit noise to all two-qubit gates.
+for gate in DOUBLE_QUBIT_GATES:
+    noise_model.add_all_qubit_quantum_error(error_2q, gate)
+
+# Noisless simulator
 noiseless_simulator = AerSimulator(method='density_matrix')
 noisy_simulator = AerSimulator(method='density_matrix', noise_model=noise_model)
 print("Set up the noiseless and noisy simulators.")
@@ -157,7 +193,8 @@ plt.title(f"{simulator_name} Circuit Performance: Noiseless vs Noisy Execution")
 
 # Extract the directory from the CSV file path
 output_dir = os.path.dirname(csv_file_path)
-output_file_path = os.path.join(output_dir, "results_table.png")
+output_name = os.path.basename(output_dir)
+output_file_path = os.path.join(output_dir, f"Results\\{output_name} Performance Analysis.png")
 
 # Save the figure before showing it
 plt.savefig(output_file_path)

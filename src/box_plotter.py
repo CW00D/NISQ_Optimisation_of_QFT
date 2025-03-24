@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 def main():
     # Define the directories within the code
     directories = [
-        "C:\\Users\\chris\\OneDrive\\Documents\\Uni\\Year 4\\Dissertation\\Project\\Experiment Results\\Optimiser_noisy\\2 Qubit Simulation"
+        "C:\\Users\\chris\\OneDrive\\Documents\\Uni\\Year 4\\Dissertation\\Project\\Experiment Results\\Optimiser_simple\\3 Qubit Simulation"
     ]
     iteration = None  # Set to a specific iteration number if needed
 

@@ -3,20 +3,25 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import datetime
 
-def plot_averaged_results(simulator_type, simulation_name, run_numbers, output_dir):
+def plot_averaged_results(simulator_type, simulation_name, output_dir):
     # Initialize lists to store the data
     all_ea_max = []
     all_ea_avg = []
     random_max = None
     random_avg = None
 
-    # Read the iteration data from each run
-    for run_number in run_numbers:
-        iteration_data_filepath = os.path.join("Experiment Results", "Optimiser_" + simulator_type, simulation_name, f"run{run_number}_iteration_data.csv")
-        if not os.path.exists(iteration_data_filepath):
-            print(f"File not found: {iteration_data_filepath}")
-            continue
-        
+    # Directory containing the iteration data files
+    iteration_data_dir = os.path.join("Experiment Results", "Optimiser_" + simulator_type, simulation_name)
+
+    # List all files in the directory
+    files = os.listdir(iteration_data_dir)
+
+    # Filter out the relevant CSV files
+    iteration_data_files = [f for f in files if f.startswith("run") and f.endswith("_iteration_data.csv")]
+
+    # Read the iteration data from each file
+    for iteration_data_file in iteration_data_files:
+        iteration_data_filepath = os.path.join(iteration_data_dir, iteration_data_file)
         df = pd.read_csv(iteration_data_filepath)
         all_ea_max.append(df["EA Max Fitness"].values)
         all_ea_avg.append(df["EA Avg Fitness"].values)
@@ -40,7 +45,7 @@ def plot_averaged_results(simulator_type, simulation_name, run_numbers, output_d
     plt.xlabel("Iterations")
     plt.ylabel("Fitness")
     plt.ylim(0, 1)
-    plt.title(f"Fitness Over {len(avg_ea_max)} Iterations (Avg Over {len(run_numbers)} Runs)")
+    plt.title(f"Fitness Over {len(avg_ea_max)} Iterations (Avg Over {len(iteration_data_files)} Runs)")
     plt.grid(True)
     os.makedirs(output_dir, exist_ok=True)
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")
@@ -49,8 +54,12 @@ def plot_averaged_results(simulator_type, simulation_name, run_numbers, output_d
     print(f"Plot saved to {os.path.join(output_dir, f'{simulation_name} Fitness Chart.png')}")
 
 if __name__ == "__main__":
-    simulation_name = "3 Qubit Simulation"  # Specify the simulation name
-    simulator_type = "depth_reduction"
-    run_numbers = [1, 2]  # Specify the run numbers
-    output_dir = "Experiment Results/Optimiser_" + simulator_type + "/" + simulation_name + "/Results"
-    plot_averaged_results(simulator_type, simulation_name, run_numbers, output_dir)
+    simulation_name = "2 Qubit Simulation"  # Specify the simulation name
+
+    #simulator_type = "simple"
+    #simulator_type = "depth_reduction"
+    #simulator_type = "noisy"
+    simulator_type = "noisy_depth_reduction"
+    
+    output_dir = os.path.join("Experiment Results", "Optimiser_" + simulator_type, simulation_name, "Results")
+    plot_averaged_results(simulator_type, simulation_name, output_dir)
