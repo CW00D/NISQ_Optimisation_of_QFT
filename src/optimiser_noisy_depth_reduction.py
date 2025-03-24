@@ -32,22 +32,48 @@ from qiskit_aer import AerSimulator
 from qiskit.circuit.library import QFT
 from qiskit.quantum_info import state_fidelity
 
-print("Loading backend models")
+# ---------------------------
+# Custom noise model
+# ---------------------------
+from qiskit_aer.noise import NoiseModel, depolarizing_error, amplitude_damping_error, phase_damping_error
 
-#New for noise
-from qiskit_aer.noise import NoiseModel
-from qiskit_ibm_runtime import QiskitRuntimeService
+# Define error rates (adjust these to exaggerate the noise effects)
+single_qubit_depol_rate = 0.02  # 2% depolarizing error for single-qubit gates
+two_qubit_depol_rate = 0.05     # 5% depolarizing error for two-qubit gates
 
-# Load IBM Quantum account
-service = QiskitRuntimeService()
+# Amplitude and phase damping parameters (gamma values)
+# These represent the probability of energy relaxation or phase loss during a gate
+amplitude_damp_gamma = 0.01     # 1% amplitude damping error
+phase_damp_gamma = 0.01         # 1% phase damping error
 
-# Select a backend
-backend = service.backend('ibm_brisbane')
+# Create a new custom noise model
+noise_model = NoiseModel()
 
-# Create a noise model from the backend
-noise_model = NoiseModel.from_backend(backend)
+# For single-qubit operations, we combine the following noise channels:
+# 1. Depolarizing error
+# 2. Amplitude damping
+# 3. Phase damping
+error_1q_depol = depolarizing_error(single_qubit_depol_rate, 1)
+error_1q_amp = amplitude_damping_error(amplitude_damp_gamma)
+error_1q_phase = phase_damping_error(phase_damp_gamma)
 
-print("Loaded backend models")
+# Combine them sequentially (order can be adjusted; here we assume they occur in sequence)
+error_1q = error_1q_depol.compose(error_1q_amp).compose(error_1q_phase)
+
+# For two-qubit operations, we use depolarizing noise as a baseline.
+error_2q = depolarizing_error(two_qubit_depol_rate, 2)
+
+# Define the gate sets for single-qubit and two-qubit operations.
+SINGLE_QUBIT_GATES = ["x", "y", "z", "h", "s", "sdg", "t", "tdg", "rx", "ry", "rz"]
+DOUBLE_QUBIT_GATES = ["cx", "cy", "cz", "swap", "crx", "cry", "crz", "cp", "rxx", "ryy", "rzz"]
+
+# Apply the single-qubit noise to all single-qubit gates.
+for gate in SINGLE_QUBIT_GATES:
+    noise_model.add_all_qubit_quantum_error(error_1q, gate)
+
+# Apply the two-qubit noise to all two-qubit gates.
+for gate in DOUBLE_QUBIT_GATES:
+    noise_model.add_all_qubit_quantum_error(error_2q, gate)
 
 
 # ---------------------------
