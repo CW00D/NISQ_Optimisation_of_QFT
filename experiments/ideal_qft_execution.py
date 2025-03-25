@@ -1,6 +1,12 @@
 
 import optimiser_simple
 
+from qiskit import QuantumCircuit, transpile
+from qiskit_aer import AerSimulator
+from qiskit.circuit.library import QFT
+from qiskit.quantum_info import state_fidelity
+
+
 qft_chromosome = [
         ["h(0)", "w", "w"],  # Hadamard on qubit 0
         ["cp(0,1,1.5707963267948966)", "w", "w"],  # Controlled rotation π/2 between qubits 0 and 1
@@ -14,3 +20,5 @@ qft_chromosome = [
 qft_circuit = optimiser_simple.get_circuits([qft_chromosome])
 fitness = optimiser_simple.get_circuit_fitnesses(qft_circuit, 3)
 print(fitness)
+
+print(QFT(3).get_instructions())
