@@ -37,42 +37,53 @@ from qiskit.quantum_info import state_fidelity
 # ---------------------------
 from qiskit_aer.noise import NoiseModel, depolarizing_error, amplitude_damping_error, phase_damping_error
 
-# Define error rates (adjust these to exaggerate the noise effects)
-single_qubit_depol_rate = 0.02  # 2% depolarizing error for single-qubit gates
-two_qubit_depol_rate = 0.05     # 5% depolarizing error for two-qubit gates
+# Define realistic error rates for single-qubit gates (in probability)
+# Note: RZ is often implemented virtually, so we assume zero error.
+# Define realistic error rates for single-qubit gates
+single_qubit_error_rates = {
+    "x": 0.002, "y": 0.002, "z": 0.001, "h": 0.0015, "s": 0.001, "sdg": 0.001,
+    "t": 0.0015, "tdg": 0.0015, "rx": 0.002, "ry": 0.002, "rz": 0.0  # RZ assumed error-free
+}
 
-# Amplitude and phase damping parameters (gamma values)
-# These represent the probability of energy relaxation or phase loss during a gate
-amplitude_damp_gamma = 0.01     # 1% amplitude damping error
-phase_damp_gamma = 0.01         # 1% phase damping error
+# Define realistic error rates for two-qubit gates
+two_qubit_error_rates = {
+    "cx": 0.02, "cy": 0.02, "cz": 0.018, "swap": 0.025,
+    "crx": 0.02, "cry": 0.02, "crz": 0.02, "cp": 0.02,
+    "rxx": 0.02, "ryy": 0.02, "rzz": 0.02
+}
 
-# Create a new custom noise model
+# Define realistic error rates for three-qubit gates
+three_qubit_error_rates = {
+    "ccx": 0.1,    # Estimated ~6× CX error
+    "cswap": 0.12  # Estimated ~8× CX error
+}
+
+# Define amplitude and phase damping parameters for single-qubit gates.
+# These represent the probability of relaxation or dephasing during the gate.
+amp_gamma = 0.002    # 0.2% amplitude damping error
+phase_gamma = 0.002  # 0.2% phase damping error
+
+# Create a new noise model instance
 noise_model = NoiseModel()
 
-# For single-qubit operations, we combine the following noise channels:
-# 1. Depolarizing error
-# 2. Amplitude damping
-# 3. Phase damping
-error_1q_depol = depolarizing_error(single_qubit_depol_rate, 1)
-error_1q_amp = amplitude_damping_error(amplitude_damp_gamma)
-error_1q_phase = phase_damping_error(phase_damp_gamma)
+# Apply single-qubit errors (combine depolarizing, amplitude damping, and phase damping)
+for gate, rate in single_qubit_error_rates.items():
+    if rate > 0:
+        # Create individual noise channels
+        error_depol = depolarizing_error(rate, 1)
+        error_amp = amplitude_damping_error(amp_gamma)
+        error_phase = phase_damping_error(phase_gamma)
+        # Combine the errors sequentially (order can be tuned)
+        combined_error = error_depol.compose(error_amp).compose(error_phase)
+        # Add the noise model for this gate
+        noise_model.add_all_qubit_quantum_error(combined_error, gate)
+    else:
+        # If the error rate is zero (e.g., for RZ), we skip adding noise
+        continue
 
-# Combine them sequentially (order can be adjusted; here we assume they occur in sequence)
-error_1q = error_1q_depol.compose(error_1q_amp).compose(error_1q_phase)
-
-# For two-qubit operations, we use depolarizing noise as a baseline.
-error_2q = depolarizing_error(two_qubit_depol_rate, 2)
-
-# Define the gate sets for single-qubit and two-qubit operations.
-SINGLE_QUBIT_GATES = ["x", "y", "z", "h", "s", "sdg", "t", "tdg", "rx", "ry", "rz"]
-DOUBLE_QUBIT_GATES = ["cx", "cy", "cz", "swap", "crx", "cry", "crz", "cp", "rxx", "ryy", "rzz"]
-
-# Apply the single-qubit noise to all single-qubit gates.
-for gate in SINGLE_QUBIT_GATES:
-    noise_model.add_all_qubit_quantum_error(error_1q, gate)
-
-# Apply the two-qubit noise to all two-qubit gates.
-for gate in DOUBLE_QUBIT_GATES:
+# Apply two-qubit errors using only depolarizing noise
+for gate, rate in two_qubit_error_rates.items():
+    error_2q = depolarizing_error(rate, 2)
     noise_model.add_all_qubit_quantum_error(error_2q, gate)
 
 # ---------------------------
