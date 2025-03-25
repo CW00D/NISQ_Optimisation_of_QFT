@@ -134,32 +134,79 @@ for directory in directories:
         results_list.append({
             "Simulation Type": simulation_name,
             "Run": run_file.split('_')[0],
-            "Avg Noiseless Fidelity": avg_noiseless_fidelity,
-            "Avg Noisy Fidelity": avg_noisy_fidelity,
-            "% Fitness Drop": avg_fitness_drop
+            "Avg Noiseless Fidelity": round(avg_noiseless_fidelity, 6),
+            "Avg Noisy Fidelity": round(avg_noisy_fidelity, 6),
+            "% Fitness Drop": round(avg_fitness_drop, 6)
         })
+
+# Calculate traditional QFT performance
+num_qubits = 2  # Adjust as needed
+qft_circuit = QFT(num_qubits)
+target_states = get_qft_target_states(num_qubits, noiseless_simulator)
+
+noiseless_fidelity_qft = evaluate_circuit_fitness(qft_circuit, noiseless_simulator, num_qubits, target_states)
+noisy_fidelity_qft = evaluate_noisy_fitness_multiple_times(qft_circuit, noisy_simulator, num_qubits, target_states)
+fitness_drop_qft = (noiseless_fidelity_qft - noisy_fidelity_qft) / noiseless_fidelity_qft * 100
+
+# Add traditional QFT performance to the results list
+results_list.insert(0, {
+    "Simulation Type": "Traditional QFT",
+    "Run": "",
+    "Avg Noiseless Fidelity": round(noiseless_fidelity_qft, 6),
+    "Avg Noisy Fidelity": round(noisy_fidelity_qft, 6),
+    "% Fitness Drop": round(fitness_drop_qft, 6)
+})
 
 results_df = pd.DataFrame(results_list)
 
+# Define the desired order for the "Simulation Type" column
+simulation_type_order = ["Traditional QFT", "Optimiser_simple", "Optimiser_depth_reduction", "Optimiser_noisy", "Optimiser_noisy_depth_reduction"]
+
+# Convert the "Simulation Type" column to a categorical type with the specified order
+results_df["Simulation Type"] = pd.Categorical(results_df["Simulation Type"], categories=simulation_type_order, ordered=True)
+
+# Sort the DataFrame by the "Simulation Type" column
+results_df.sort_values(["Simulation Type", "Run"], inplace=True)
+
 print(results_df)
 
-# Create a multi-row header DataFrame for display
-display_df = results_df.pivot(index="Run", columns="Simulation Type", values=["Avg Noiseless Fidelity", "Avg Noisy Fidelity", "% Fitness Drop"])
-display_df = display_df.reindex(sorted(display_df.columns, key=lambda x: x[1]), axis=1)
+# Create a multi-index DataFrame for display
+results_df.set_index(["Simulation Type", "Run"], inplace=True)
 
-fig, ax = plt.subplots(figsize=(12, len(display_df) * 0.5 + 1))
+fig, ax = plt.subplots(figsize=(12, len(results_df) * 0.5 + 1))
 ax.axis('tight')
 ax.axis('off')
-table = ax.table(cellText=display_df.values,
-                 colLabels=display_df.columns.get_level_values(1),
-                 rowLabels=display_df.index,
-                 colColours=["#f2f2f2"] * len(display_df.columns),
+
+# Create the table with separate columns for "Simulation Type" and "Run"
+table = ax.table(cellText=results_df.reset_index().values,
+                 colLabels=results_df.reset_index().columns,
                  cellLoc='center',
-                 loc='center')
+                 loc='center',
+                 bbox=[0, 0, 1, 1])
+
+# Adjust column widths
+for key, cell in table.get_celld().items():
+    cell.set_width(0.25)
+
+# Style the header
+for key, cell in table.get_celld().items():
+    if key[0] == 0:
+        cell.set_facecolor('#000080')
+        cell.set_text_props(color='white', weight='bold')
+
+# Shade the "Depth Reduction" and "Noisy Depth Reduction" rows
+for key, cell in table.get_celld().items():
+    if key[0] > 0 and (results_df.index[key[0] - 1][0] in ["Optimiser_depth_reduction", "Optimiser_noisy_depth_reduction"]):
+        cell.set_facecolor('#d9d9d9')  # Slightly darker grey
+
+# Shade the traditional QFT row in light green
+for key, cell in table.get_celld().items():
+    if key[0] == 1:
+        cell.set_facecolor('#d9ead3')  # Light green
 
 plt.title("Simulation Performance Analysis")
 
 # Save the figure before showing it
 output_file_path = os.path.join("Experiment Results", "Performance Analysis.png")
-plt.savefig(output_file_path)
+plt.savefig(output_file_path, bbox_inches='tight')
 plt.show()
