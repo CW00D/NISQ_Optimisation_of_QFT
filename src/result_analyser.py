@@ -89,6 +89,11 @@ for gate, rate in two_qubit_error_rates.items():
     error_2q = depolarizing_error(rate, 2)
     noise_model.add_all_qubit_quantum_error(error_2q, gate)
 
+# Apply three-qubit errors using depolarizing noise
+for gate, rate in three_qubit_error_rates.items():
+    error_3q = depolarizing_error(rate, 3)
+    noise_model.add_all_qubit_quantum_error(error_3q, gate)
+
 # Noiseless simulator
 noiseless_simulator = AerSimulator(method='density_matrix')
 noisy_simulator = AerSimulator(method='density_matrix', noise_model=noise_model)
@@ -97,11 +102,12 @@ print("Set up the noiseless and noisy simulators.")
 native_gates = AerSimulator(method='density_matrix').configuration().basis_gates
 
 # Directories to process
+num_qubits = 2  # Adjust as needed
 directories = [
-    r"Experiment Results\\Optimiser_simple\\2 Qubit Simulation\\Data",
-    r"Experiment Results\\Optimiser_depth_reduction\\2 Qubit Simulation\\Data",
-    r"Experiment Results\\Optimiser_noisy\\2 Qubit Simulation\\Data",
-    r"Experiment Results\\Optimiser_noisy_depth_reduction\\2 Qubit Simulation\\Data"
+    r"Experiment Results\\Optimiser_simple\\" + str(num_qubits) + " Qubit Simulation\\Data",
+    r"Experiment Results\\Optimiser_depth_reduction\\" + str(num_qubits) + " Qubit Simulation\\Data",
+    r"Experiment Results\\Optimiser_noisy\\" + str(num_qubits) + " Qubit Simulation\\Data",
+    r"Experiment Results\\Optimiser_noisy_depth_reduction\\" + str(num_qubits) + " Qubit Simulation\\Data"
 ]
 
 results_list = []
@@ -140,7 +146,6 @@ for directory in directories:
         })
 
 # Calculate traditional QFT performance
-num_qubits = 2  # Adjust as needed
 qft_circuit = QFT(num_qubits)
 target_states = get_qft_target_states(num_qubits, noiseless_simulator)
 

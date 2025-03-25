@@ -86,6 +86,11 @@ for gate, rate in two_qubit_error_rates.items():
     error_2q = depolarizing_error(rate, 2)
     noise_model.add_all_qubit_quantum_error(error_2q, gate)
 
+# Apply three-qubit errors using depolarizing noise
+for gate, rate in three_qubit_error_rates.items():
+    error_3q = depolarizing_error(rate, 3)
+    noise_model.add_all_qubit_quantum_error(error_3q, gate)
+
 
 # ---------------------------
 # Global Constants
