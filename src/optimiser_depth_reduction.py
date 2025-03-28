@@ -39,9 +39,9 @@ POPULATION = 100
 ELITISM_NUMBER = POPULATION // 3
 INITIAL_CIRCUIT_DEPTH = 10
 PARAMETER_MUTATION_RATE = 0.1
+PARAMETER_STD_DEV = 0.01
 GATE_MUTATION_RATE = 0.3
 LAYER_MUTATION_RATE = 0.2
-MAX_PARAMETER_MUTATION = 0.2
 LAYER_DELETION_RATE = 0.03
 
 SINGLE_QUBIT_GATES = [
@@ -407,8 +407,7 @@ def crossover(parent_1, parent_2):
 def mutate_chromosome(chromosome):
     """
     Mutate a single chromosome by modifying gate types, parameters, or layers.
-    
-    If a layer is selected for deletion, it is removed from the chromosome.
+    Now uses a normal distribution for parameter mutations to allow controlled variation.
     
     Parameters:
         chromosome (list): The chromosome to mutate.
@@ -417,15 +416,13 @@ def mutate_chromosome(chromosome):
         list: Mutated chromosome.
     """
     mutated_chromosome = []
-    
+    PARAMETER_STD_DEV = 0.1  # Standard deviation for parameter mutations
+
     for layer in chromosome:
-        # If the deletion condition is met, skip this layer entirely.
         if np.random.rand() < LAYER_DELETION_RATE:
-            continue
+            continue  # Skip this layer entirely
         else:
-            # Process gate mutations within the layer.
             for j in range(len(layer)):
-                # Skip if it's a control qubit.
                 if layer[j] == "-":
                     continue
                 elif np.random.rand() < GATE_MUTATION_RATE:
@@ -435,7 +432,7 @@ def mutate_chromosome(chromosome):
                     elif gate_type == "single":
                         gate_choice = np.random.choice(SINGLE_QUBIT_GATES)
                         if gate_choice in PARAMETRISED_GATES:
-                            layer[j] = f"{gate_choice}({j}, {np.random.random()})"
+                            layer[j] = f"{gate_choice}({j}, {np.random.normal(0.5, PARAMETER_STD_DEV)})"
                         else:
                             layer[j] = f"{gate_choice}({j})"
                     elif gate_type == "double":
@@ -445,7 +442,7 @@ def mutate_chromosome(chromosome):
                             control_qubit = np.random.randint(0, len(layer))
                         gate_choice = np.random.choice(DOUBLE_QUBIT_GATES)
                         if gate_choice in PARAMETRISED_GATES:
-                            layer[target_qubit] = f"{gate_choice}({control_qubit},{target_qubit},{np.random.random()})"
+                            layer[target_qubit] = f"{gate_choice}({control_qubit},{target_qubit},{np.random.normal(0.5, PARAMETER_STD_DEV)})"
                         else:
                             layer[target_qubit] = f"{gate_choice}({control_qubit},{target_qubit})"
                         layer[control_qubit] = "-"
@@ -453,7 +450,7 @@ def mutate_chromosome(chromosome):
                         qubit_1, qubit_2, qubit_3 = np.random.choice(len(layer), size=3, replace=False)
                         gate_choice = np.random.choice(TRIPLE_QUBIT_GATES)
                         if gate_choice in PARAMETRISED_GATES:
-                            layer[qubit_3] = f"{gate_choice}({qubit_1},{qubit_2},{qubit_3},{np.random.random()})"
+                            layer[qubit_3] = f"{gate_choice}({qubit_1},{qubit_2},{qubit_3},{np.random.normal(0.5, PARAMETER_STD_DEV)})"
                         else:
                             layer[qubit_3] = f"{gate_choice}({qubit_1},{qubit_2},{qubit_3})"
                         layer[qubit_1] = "-"
@@ -464,24 +461,16 @@ def mutate_chromosome(chromosome):
                         gate_name, params_str = match.groups()
                         params_list = [p.strip() for p in params_str.split(",")]
                         param_value = float(params_list[-1])
-                        factor = np.random.uniform(1, MAX_PARAMETER_MUTATION)
-                        if np.random.rand() < 0.5:
-                            param_value *= factor
-                        else:
-                            param_value /= factor
-                        param_value = max(param_value, 0.0)
+                        param_value += np.random.normal(0, PARAMETER_STD_DEV)  # Apply Gaussian mutation
+                        param_value = max(param_value, 0.0)  # Ensure non-negative
                         params_list[-1] = str(param_value)
                         layer[j] = f"{gate_name}({','.join(params_list)})"
-            # Add the (possibly mutated) layer to the new chromosome.
             mutated_chromosome.append(layer)
     
-    # Potentially add a new layer.
     if np.random.rand() < LAYER_MUTATION_RATE:
-        # Assuming chromosome isn't empty; if it might be, adjust accordingly.
         new_layer = create_new_layer(len(chromosome[0]))
         mutated_chromosome.append(new_layer)
     
-    # If the resulting chromosome is empty, replace it with a new randomly generated chromosome.
     if not mutated_chromosome:
         mutated_chromosome = initialize_chromosomes(len(chromosome[0]))[0]
     
