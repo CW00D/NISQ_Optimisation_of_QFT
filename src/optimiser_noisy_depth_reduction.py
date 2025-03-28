@@ -505,16 +505,18 @@ def mutate_chromosome(chromosome):
                             layer[qubit_3] = f"{gate_choice}({qubit_1},{qubit_2},{qubit_3})"
                         layer[qubit_1] = "-"
                         layer[qubit_2] = "-"
-                elif np.random.rand() < PARAMETER_MUTATION_RATE:
-                    match = re.match(r"([a-z]+)\((.*)\)", layer[j])
-                    if match and match.group(1) in PARAMETRISED_GATES:
-                        gate_name, params_str = match.groups()
-                        params_list = [p.strip() for p in params_str.split(",")]
-                        param_value = float(params_list[-1])
-                        param_value += np.random.normal(0, PARAMETER_STD_DEV)  # Apply Gaussian mutation
-                        param_value = max(param_value, 0.0)  # Ensure non-negative
-                        params_list[-1] = str(param_value)
-                        layer[j] = f"{gate_name}({','.join(params_list)})"
+                match = re.match(r"([a-z]+)\((.*)\)", layer[j])
+                if match and match.group(1) in PARAMETRISED_GATES:
+                    gate_name, params_str = match.groups()
+                    params_list = [p.strip() for p in params_str.split(",")]
+                    param_value = float(params_list[-1])
+
+                    # Apply Gaussian mutation unconditionally
+                    param_value += np.random.normal(0, PARAMETER_STD_DEV)
+                    param_value = max(param_value, 0.0)  # Ensure non-negative
+
+                    params_list[-1] = str(param_value)
+                    layer[j] = f"{gate_name}({','.join(params_list)})"
             mutated_chromosome.append(layer)
     
     if np.random.rand() < LAYER_MUTATION_RATE:
