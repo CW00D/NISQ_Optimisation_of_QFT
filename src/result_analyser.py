@@ -2,13 +2,28 @@ import ast
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+import os
+
 from qiskit import QuantumCircuit, transpile
 from qiskit_aer import AerSimulator
 from qiskit_aer.noise import NoiseModel, depolarizing_error, amplitude_damping_error, phase_damping_error
 from qiskit.quantum_info import state_fidelity
 from qiskit.circuit.library import QFT
 from optimiser_noisy import get_circuits
-import os
+
+
+
+from qiskit_aer.noise import NoiseModel
+from qiskit_ibm_runtime import QiskitRuntimeService
+
+# Load IBM Quantum account
+service = QiskitRuntimeService()
+
+# Select a backend
+
+
+print("Loaded backend models")
+
 
 def evaluate_noisy_fitness_multiple_times(circuit, simulator, num_qubits, target_states, num_evaluations=20):
     total_fitness = 0.0
@@ -72,7 +87,7 @@ three_qubit_error_rates = {
 amp_gamma = 0.002    # 0.2% amplitude damping error
 phase_gamma = 0.002  # 0.2% phase damping error
 
-# Create a new noise model instance
+# Create a new noise model instance for the training noise model
 noise_model = NoiseModel()
 
 # Apply single-qubit errors (combine depolarizing, amplitude damping, and phase damping)
@@ -94,20 +109,34 @@ for gate, rate in three_qubit_error_rates.items():
     error_3q = depolarizing_error(rate, 3)
     noise_model.add_all_qubit_quantum_error(error_3q, gate)
 
-# Noiseless simulator
+# Set up simulators
 noiseless_simulator = AerSimulator(method='density_matrix')
 noisy_simulator = AerSimulator(method='density_matrix', noise_model=noise_model)
-print("Set up the noiseless and noisy simulators.")
+print("Set up the noiseless and trained noisy simulators.")
 
+# Get the native basis gates for transpilation from the default simulator configuration
 native_gates = AerSimulator(method='density_matrix').configuration().basis_gates
+
+# -----------------------------
+# Set up the unseen noise model using IBM's ibm_brisbane
+
+
+# Create a noise model from the backend
+backend = service.backend('ibm_brisbane')
+noise_model_unseen = NoiseModel.from_backend(backend)
+
+# Create a simulator with the unseen noise model
+unseen_simulator = AerSimulator(method='density_matrix', noise_model=noise_model_unseen)
+print("Set up the unseen simulator using the ibm_brisbane noise model.")
+# -----------------------------
 
 # Directories to process
 num_qubits = 2  # Adjust as needed
 directories = [
-    r"Experiment Results\\Optimiser_simple\\" + str(num_qubits) + " Qubit Simulation\\Data",
-    r"Experiment Results\\Optimiser_depth_reduction\\" + str(num_qubits) + " Qubit Simulation\\Data",
-    r"Experiment Results\\Optimiser_noisy\\" + str(num_qubits) + " Qubit Simulation\\Data",
-    r"Experiment Results\\Optimiser_noisy_depth_reduction\\" + str(num_qubits) + " Qubit Simulation\\Data"
+    r"Experiment Results\\Optimiser_simple\\" + str(num_qubits) + " Qubit Simulation\Data",
+    r"Experiment Results\\Optimiser_depth_reduction\\" + str(num_qubits) + " Qubit Simulation\Data",
+    r"Experiment Results\\Optimiser_noisy\\" + str(num_qubits) + " Qubit Simulation\Data",
+    r"Experiment Results\\Optimiser_noisy_depth_reduction\\" + str(num_qubits) + " Qubit Simulation\Data"
 ]
 
 results_list = []
@@ -132,17 +161,24 @@ for directory in directories:
                                 for circ in circuits]
         noisy_fidelities = [evaluate_noisy_fitness_multiple_times(circ, noisy_simulator, num_qubits, target_states)
                             for circ in circuits]
+        unseen_fidelities = [evaluate_noisy_fitness_multiple_times(circ, unseen_simulator, num_qubits, target_states)
+                             for circ in circuits]
         
         avg_noiseless_fidelity = np.mean(noiseless_fidelities)
         avg_noisy_fidelity = np.mean(noisy_fidelities)
+        avg_unseen_fidelity = np.mean(unseen_fidelities)
+        
         avg_fitness_drop = np.mean([(nf - nf_noisy) / nf * 100 for nf, nf_noisy in zip(noiseless_fidelities, noisy_fidelities)])
+        avg_fitness_drop_unseen = np.mean([(nf - nf_unseen) / nf * 100 for nf, nf_unseen in zip(noiseless_fidelities, unseen_fidelities)])
         
         results_list.append({
             "Simulation Type": simulation_name,
             "Run": run_file.split('_')[0],
             "Avg Noiseless Fidelity": round(avg_noiseless_fidelity, 6),
             "Avg Noisy Fidelity": round(avg_noisy_fidelity, 6),
-            "% Fitness Drop": round(avg_fitness_drop, 6)
+            "% Fitness Drop": round(avg_fitness_drop, 6),
+            "Avg Unseen Fidelity": round(avg_unseen_fidelity, 6),
+            "% Fitness Drop (Unseen)": round(avg_fitness_drop_unseen, 6)
         })
 
 # Calculate traditional QFT performance
@@ -151,7 +187,10 @@ target_states = get_qft_target_states(num_qubits, noiseless_simulator)
 
 noiseless_fidelity_qft = evaluate_circuit_fitness(qft_circuit, noiseless_simulator, num_qubits, target_states)
 noisy_fidelity_qft = evaluate_noisy_fitness_multiple_times(qft_circuit, noisy_simulator, num_qubits, target_states)
+unseen_fidelity_qft = evaluate_noisy_fitness_multiple_times(qft_circuit, unseen_simulator, num_qubits, target_states)
+
 fitness_drop_qft = (noiseless_fidelity_qft - noisy_fidelity_qft) / noiseless_fidelity_qft * 100
+fitness_drop_qft_unseen = (noiseless_fidelity_qft - unseen_fidelity_qft) / noiseless_fidelity_qft * 100
 
 # Add traditional QFT performance to the results list
 results_list.insert(0, {
@@ -159,7 +198,9 @@ results_list.insert(0, {
     "Run": "",
     "Avg Noiseless Fidelity": round(noiseless_fidelity_qft, 6),
     "Avg Noisy Fidelity": round(noisy_fidelity_qft, 6),
-    "% Fitness Drop": round(fitness_drop_qft, 6)
+    "% Fitness Drop": round(fitness_drop_qft, 6),
+    "Avg Unseen Fidelity": round(unseen_fidelity_qft, 6),
+    "% Fitness Drop (Unseen)": round(fitness_drop_qft_unseen, 6)
 })
 
 results_df = pd.DataFrame(results_list)
@@ -191,7 +232,7 @@ table = ax.table(cellText=results_df.reset_index().values,
 
 # Adjust column widths
 for key, cell in table.get_celld().items():
-    cell.set_width(0.25)
+    cell.set_width(0.15)
 
 # Style the header
 for key, cell in table.get_celld().items():
