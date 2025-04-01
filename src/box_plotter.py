@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 def main():
     # Define the directories within the code
     directories = [
-        "C:\\Users\\chris\\OneDrive\\Documents\\Uni\\Year 4\\Dissertation\\Project\\Experiment Results\\Optimiser_simple\\3 Qubit Simulation"
+        "C:\\Users\\chris\\OneDrive\\Documents\\Uni\\Year 4\\Dissertation\\Project\\Experiment Results\\Optimiser_simple\\2 Qubit Simulation\\Data"
     ]
     iteration = None  # Set to a specific iteration number if needed
 
@@ -56,7 +56,7 @@ def main():
             plt.text(x + 0.1, y, f'{y:.2f}', horizontalalignment='left', verticalalignment='bottom', fontsize=8, color='black', fontweight='bold')
 
         # Save the box plot in the "Results" directory of the current folder
-        output_dir = os.path.join(directory, "Results")
+        output_dir = os.path.join(os.path.dirname(directory), "Results")
         os.makedirs(output_dir, exist_ok=True)
         output_name = os.path.basename(directory)
         output = os.path.join(output_dir, f"{output_name} Box Plot.png")

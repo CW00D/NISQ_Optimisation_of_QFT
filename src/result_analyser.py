@@ -11,21 +11,14 @@ from qiskit.quantum_info import state_fidelity
 from qiskit.circuit.library import QFT
 from optimiser_noisy import get_circuits
 
-
-
 from qiskit_aer.noise import NoiseModel
 from qiskit_ibm_runtime import QiskitRuntimeService
 
 # Load IBM Quantum account
 service = QiskitRuntimeService()
-
-# Select a backend
-
-
 print("Loaded backend models")
 
-
-def evaluate_noisy_fitness_multiple_times(circuit, simulator, num_qubits, target_states, num_evaluations=20):
+def evaluate_noisy_fitness_multiple_times(circuit, simulator, num_qubits, target_states, num_evaluations=1):
     total_fitness = 0.0
     for _ in range(num_evaluations):
         total_fitness += evaluate_circuit_fitness(circuit, simulator, num_qubits, target_states)
@@ -119,13 +112,9 @@ native_gates = AerSimulator(method='density_matrix').configuration().basis_gates
 
 # -----------------------------
 # Set up the unseen noise model using IBM's ibm_brisbane
-
-
-# Create a noise model from the backend
+# (We now ignore unseen fidelity results.)
 backend = service.backend('ibm_brisbane')
 noise_model_unseen = NoiseModel.from_backend(backend)
-
-# Create a simulator with the unseen noise model
 unseen_simulator = AerSimulator(method='density_matrix', noise_model=noise_model_unseen)
 print("Set up the unseen simulator using the ibm_brisbane noise model.")
 # -----------------------------
@@ -140,7 +129,6 @@ directories = [
 ]
 
 results_list = []
-
 print("Processing the directories...")
 
 for directory in directories:
@@ -161,71 +149,85 @@ for directory in directories:
                                 for circ in circuits]
         noisy_fidelities = [evaluate_noisy_fitness_multiple_times(circ, noisy_simulator, num_qubits, target_states)
                             for circ in circuits]
-        unseen_fidelities = [evaluate_noisy_fitness_multiple_times(circ, unseen_simulator, num_qubits, target_states)
-                             for circ in circuits]
         
         avg_noiseless_fidelity = np.mean(noiseless_fidelities)
         avg_noisy_fidelity = np.mean(noisy_fidelities)
-        avg_unseen_fidelity = np.mean(unseen_fidelities)
         
         avg_fitness_drop = np.mean([(nf - nf_noisy) / nf * 100 for nf, nf_noisy in zip(noiseless_fidelities, noisy_fidelities)])
-        avg_fitness_drop_unseen = np.mean([(nf - nf_unseen) / nf * 100 for nf, nf_unseen in zip(noiseless_fidelities, unseen_fidelities)])
         
         results_list.append({
             "Simulation Type": simulation_name,
             "Run": run_file.split('_')[0],
-            "Avg Noiseless Fidelity": round(avg_noiseless_fidelity, 6),
-            "Avg Noisy Fidelity": round(avg_noisy_fidelity, 6),
-            "% Fitness Drop": round(avg_fitness_drop, 6),
-            "Avg Unseen Fidelity": round(avg_unseen_fidelity, 6),
-            "% Fitness Drop (Unseen)": round(avg_fitness_drop_unseen, 6)
+            "Avg Noiseless Fidelity": avg_noiseless_fidelity,
+            "Avg Noisy Fidelity": avg_noisy_fidelity,
+            "% Fidelity Drop": avg_fitness_drop
         })
 
-# Calculate traditional QFT performance
+# Calculate traditional QFT performance (only one circuit, so one row)
 qft_circuit = QFT(num_qubits)
 target_states = get_qft_target_states(num_qubits, noiseless_simulator)
-
 noiseless_fidelity_qft = evaluate_circuit_fitness(qft_circuit, noiseless_simulator, num_qubits, target_states)
 noisy_fidelity_qft = evaluate_noisy_fitness_multiple_times(qft_circuit, noisy_simulator, num_qubits, target_states)
-unseen_fidelity_qft = evaluate_noisy_fitness_multiple_times(qft_circuit, unseen_simulator, num_qubits, target_states)
-
 fitness_drop_qft = (noiseless_fidelity_qft - noisy_fidelity_qft) / noiseless_fidelity_qft * 100
-fitness_drop_qft_unseen = (noiseless_fidelity_qft - unseen_fidelity_qft) / noiseless_fidelity_qft * 100
 
-# Add traditional QFT performance to the results list
+# Insert Traditional QFT result as a single row
 results_list.insert(0, {
     "Simulation Type": "Traditional QFT",
-    "Run": "",
-    "Avg Noiseless Fidelity": round(noiseless_fidelity_qft, 6),
-    "Avg Noisy Fidelity": round(noisy_fidelity_qft, 6),
-    "% Fitness Drop": round(fitness_drop_qft, 6),
-    "Avg Unseen Fidelity": round(unseen_fidelity_qft, 6),
-    "% Fitness Drop (Unseen)": round(fitness_drop_qft_unseen, 6)
+    "Run": "Run",
+    "Avg Noiseless Fidelity": noiseless_fidelity_qft,
+    "Avg Noisy Fidelity": noisy_fidelity_qft,
+    "% Fidelity Drop": fitness_drop_qft
 })
 
 results_df = pd.DataFrame(results_list)
 
-# Define the desired order for the "Simulation Type" column
-simulation_type_order = ["Traditional QFT", "Optimiser_simple", "Optimiser_depth_reduction", "Optimiser_noisy", "Optimiser_noisy_depth_reduction"]
-
-# Convert the "Simulation Type" column to a categorical type with the specified order
-results_df["Simulation Type"] = pd.Categorical(results_df["Simulation Type"], categories=simulation_type_order, ordered=True)
-
-# Sort the DataFrame by the "Simulation Type" column
+# Set the desired order for simulation types
+simulation_type_order = [
+    "Traditional QFT", "Optimiser_simple", "Optimiser_depth_reduction",
+    "Optimiser_noisy", "Optimiser_noisy_depth_reduction"
+]
+results_df["Simulation Type"] = pd.Categorical(results_df["Simulation Type"],
+                                               categories=simulation_type_order,
+                                               ordered=True)
 results_df.sort_values(["Simulation Type", "Run"], inplace=True)
 
-print(results_df)
+# --- Create Aggregated Summary ---
+# For each simulation type (except QFT), add two rows: one for the average and one for the maximum.
+summary_list = []
+for sim_type in simulation_type_order:
+    if sim_type == "Traditional QFT":
+        # Keep the QFT row as-is.
+        qft_row = results_df[results_df["Simulation Type"] == sim_type].iloc[0].to_dict()
+        summary_list.append(qft_row)
+    else:
+        group = results_df[results_df["Simulation Type"] == sim_type]
+        if not group.empty:
+            avg_row = {
+                "Simulation Type": sim_type,
+                "Run": "Average",
+                "Avg Noiseless Fidelity": group["Avg Noiseless Fidelity"].mean(),
+                "Avg Noisy Fidelity": group["Avg Noisy Fidelity"].mean(),
+                "Std Dev Noisy Fidelity": group["Avg Noisy Fidelity"].std(),  # Compute standard deviation
+                "% Fidelity Drop": group["% Fidelity Drop"].mean()
+            }
+            max_index = group["Avg Noisy Fidelity"].idxmax()
+            max_row = group.loc[max_index].to_dict()
+            max_row["Run"] = "Best Circuit"
+            max_row["Std Dev Noisy Fidelity"] = "-"
+            summary_list.append(avg_row)
+            summary_list.append(max_row)
 
-# Create a multi-index DataFrame for display
-results_df.set_index(["Simulation Type", "Run"], inplace=True)
+summary_df = pd.DataFrame(summary_list)
+summary_df = summary_df.round(6)
 
-fig, ax = plt.subplots(figsize=(12, len(results_df) * 0.5 + 1))
+# --- Plotting the Aggregated Summary Table ---
+fig, ax = plt.subplots(figsize=(12, len(summary_df) * 0.7 + 1))
 ax.axis('tight')
 ax.axis('off')
 
-# Create the table with separate columns for "Simulation Type" and "Run"
-table = ax.table(cellText=results_df.reset_index().values,
-                 colLabels=results_df.reset_index().columns,
+# Create the table using the aggregated summary DataFrame
+table = ax.table(cellText=summary_df.values,
+                 colLabels=summary_df.columns,
                  cellLoc='center',
                  loc='center',
                  bbox=[0, 0, 1, 1])
@@ -233,26 +235,34 @@ table = ax.table(cellText=results_df.reset_index().values,
 # Adjust column widths
 for key, cell in table.get_celld().items():
     cell.set_width(0.15)
+    # Increase font size
+    cell.set_fontsize(20)
 
-# Style the header
+# Style header cells (bold and increased font size)
 for key, cell in table.get_celld().items():
     if key[0] == 0:
         cell.set_facecolor('#000080')
-        cell.set_text_props(color='white', weight='bold')
+        cell.set_text_props(color='white', weight='bold', fontsize=20)
 
-# Shade the "Depth Reduction" and "Noisy Depth Reduction" rows
-for key, cell in table.get_celld().items():
-    if key[0] > 0 and (results_df.index[key[0] - 1][0] in ["Optimiser_depth_reduction", "Optimiser_noisy_depth_reduction"]):
-        cell.set_facecolor('#d9d9d9')  # Slightly darker grey
+# Apply row shading:
+# - Highlight Traditional QFT row in light green.
+# - Shade Optimiser_depth_reduction and Optimiser_noisy_depth_reduction rows in grey.
+n_rows = summary_df.shape[0]
+for i in range(1, n_rows+1):  # table rows (header is row 0)
+    sim_type = table[(i, 0)].get_text().get_text()
+    if sim_type == "Traditional QFT":
+        for j in range(summary_df.shape[1]):
+            table[(i, j)].set_facecolor('#d9ead3')  # light green
+    elif sim_type in ["Optimiser_depth_reduction", "Optimiser_noisy_depth_reduction"]:
+        for j in range(summary_df.shape[1]):
+            table[(i, j)].set_facecolor('#d9d9d9')  # grey
 
-# Shade the traditional QFT row in light green
-for key, cell in table.get_celld().items():
-    if key[0] == 1:
-        cell.set_facecolor('#d9ead3')  # Light green
+# --- Save the Plot --- 
+output_dir = "Experiment Results/Summary Plots"
+os.makedirs(output_dir, exist_ok=True)  # Ensure the directory exists
 
-plt.title("Simulation Performance Analysis")
-
-# Save the figure before showing it
-output_file_path = os.path.join("Experiment Results", "Performance Analysis.png")
-plt.savefig(output_file_path, bbox_inches='tight')
+output_filepath = os.path.join(output_dir, f"summary_plot_{num_qubits}_qubits.png")
+plt.title("Fitnesses Performance Analysis", fontsize=20)
+fig.savefig(output_filepath, bbox_inches='tight', dpi=300)
+print(f"Plot saved to: {output_filepath}")
 plt.show()

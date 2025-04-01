@@ -2,27 +2,25 @@ import time
 import os
 import random
 import numpy as np
-from datetime import datetime
 import concurrent.futures
 import matplotlib
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 from qiskit.quantum_info import Statevector
 
 # ================================
 # Simulator Selection
 # ================================
-#import optimiser_simple as optimiser ##
-#import optimiser_noisy as optimiser ##
-#import optimiser_depth_reduction as optimiser ##
-import optimiser_noisy_depth_reduction as optimiser
+#import optimiser_simple as optimiser #10|2
+#import optimiser_depth_reduction as optimiser #10|1
+#import optimiser_noisy as optimiser #10|3
+import optimiser_noisy_depth_reduction as optimiser #4|0
 
 # ================================
 # Global Execution Parameters
 # ================================
 qubits = 2
 
-BASELINE_ITERATIONS = 1000
+BASELINE_ITERATIONS = 2000
 N_RANDOM_RUNS = 2
 RANDOM_BASELINE_DIR = "Experiment Results/Random_Baseline"
 RANDOM_BASELINE_FILE = os.path.join(RANDOM_BASELINE_DIR, "random_baseline_" + str(qubits) + "_qubit_simple.csv")
@@ -129,13 +127,14 @@ def run_single_run(run, iterations, qubits, target_states, intermediate_chromoso
         if i % 100 == 0:
             print(f"Run {run}, iteration {i}")
         circuits = optimiser.get_circuits(chromosomes)
+
         # Get full fitness values for all individuals
         fitnesses = optimiser.get_circuit_fitnesses(target_states, circuits, chromosomes)
         max_fitness = max(fitnesses)
         avg_fitness = sum(fitnesses) / len(fitnesses)
         run_ea_max.append(max_fitness)
         run_ea_avg.append(avg_fitness)
-        
+
         # Save top 10 chromosomes every 100 iterations (and at the final iteration)
         if i % 100 == 0 or i == iterations - 1:
             sorted_chromosomes = sorted(zip(fitnesses, chromosomes), key=lambda x: x[0], reverse=True)
@@ -143,7 +142,7 @@ def run_single_run(run, iterations, qubits, target_states, intermediate_chromoso
             save_fitness_values(i, fitnesses, fitness_csv_filepath, run)
         
         chromosomes = optimiser.apply_genetic_operators(chromosomes, fitnesses)
-    
+
     final_circuits = optimiser.get_circuits(chromosomes)
     final_fitnesses = optimiser.get_circuit_fitnesses(target_states, final_circuits, chromosomes)
     sorted_final = sorted(zip(final_fitnesses, chromosomes), key=lambda x: x[0], reverse=True)
@@ -251,6 +250,6 @@ if __name__ == "__main__":
     simulation_name = str(qubits) + " Qubit Simulation"  # Specify the simulation name
     # Adjust iterations and n_runs as needed.
     if qubits == 2:
-        execute_optimisation(simulation_name, iterations=1000, n_runs=1)
+        execute_optimisation(simulation_name, iterations=2000, n_runs=1)
     if qubits == 3:
         execute_optimisation(simulation_name, iterations=20000, n_runs=1)

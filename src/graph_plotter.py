@@ -73,8 +73,8 @@ if __name__ == "__main__":
     
     #simulator_type = "simple"
     #simulator_type = "depth_reduction"
-    simulator_type = "noisy"
-    #simulator_type = "noisy_depth_reduction"
+    #simulator_type = "noisy"
+    simulator_type = "noisy_depth_reduction"
     
     output_dir = os.path.join("Experiment Results", "Optimiser_" + simulator_type, simulation_name, "Results")
     plot_averaged_results(simulator_type, simulation_name, output_dir)
