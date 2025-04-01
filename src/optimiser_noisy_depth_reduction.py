@@ -91,7 +91,6 @@ for gate, rate in three_qubit_error_rates.items():
     error_3q = depolarizing_error(rate, 3)
     noise_model.add_all_qubit_quantum_error(error_3q, gate)
 
-
 # ---------------------------
 # Global Constants
 # ---------------------------
@@ -118,8 +117,8 @@ PARAMETRISED_GATES = [
 ]
 
 # Qiskit Simulator instance.
-NOISY_SIMULATOR = AerSimulator(noise_model=noise_model, method='statevector')
-NOISLESS_SIMULATOR = AerSimulator(method='statevector')
+NOISY_SIMULATOR = AerSimulator(noise_model=noise_model, method='density_matrix')
+NOISLESS_SIMULATOR = AerSimulator(method='density_matrix')
 
 native_gates = NOISLESS_SIMULATOR.configuration().basis_gates
 
@@ -248,7 +247,7 @@ def initialize_chromosomes(qubits):
 
     Parameters:
         qubits (int): Number of qubits (i.e. gates per layer).
-        INITIAL_CIRCUIT_DEPTH (int): Number of layers per chromosome.
+        initial_circuit_depth (int): Number of layers per chromosome.
 
     Returns:
         list: List of chromosomes.
