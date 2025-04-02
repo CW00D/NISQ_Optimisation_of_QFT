@@ -7,18 +7,26 @@ from qiskit.circuit.library import QFT
 from qiskit.quantum_info import state_fidelity
 
 
-qft_chromosome = [
-        ["h(0)", "w", "w"],  # Hadamard on qubit 0
-        ["cp(0,1,1.5707963267948966)", "w", "w"],  # Controlled rotation π/2 between qubits 0 and 1
-        ["cp(0,2,0.7853981633974483)", "w", "w"],  # Controlled rotation π/4 between qubits 0 and 2
-        ["w", "h(1)", "w"],  # Hadamard on qubit 1
-        ["w", "cp(1,2,1.5707963267948966)", "w"],  # Controlled rotation π/2 between qubits 1 and 2
-        ["w", "w", "h(2)"],  # Hadamard on qubit 2
-        ["swap(0,2)", "w", "w"],  # Swap qubits 0 and 2
-    ]
+qft_chromosome = [['z(0)', 'w'], ['h(0)', 'w'], ['-', 'cz(0,1)'], ['-', 'ryy(0,1,0.7845371797807829)'], ['w', 'h(1)'], ['cx(1,0)', '-'], ['sdg(0)', 'w'], ['t(0)', 'w'], ['swap(1,0)', '-']]
     
 qft_circuit = optimiser_simple.get_circuits([qft_chromosome])
-fitness = optimiser_simple.get_circuit_fitnesses(qft_circuit, 3)
-print(fitness)
 
-print(QFT(3).get_instructions())
+
+print("\n\n")
+print(qft_circuit[0])
+print("\n\n")
+
+
+
+
+#Top Chromosome for Optimiser_simple:
+#[['w', 'w'], ['w', 'h(1)'], ['t(0)', 'tdg(1)'], ['tdg(0)', 'w'], ['cy(1,0)', '-'], ['swap(1,0)', '-'], ['h(0)', 'tdg(1)'], ['-', 'cz(0,1)'], ['swap(1,0)', '-'], ['w', 'w']]
+#--------------------------------------------------------------------------------
+#Top Chromosome for Optimiser_depth_reduction:
+#[['-', 'crx(0,1,1.570798744699224)'], ['cx(1,0)', '-'], ['-', 'z(1)'], ['h(0)', 'h(1)'], ['cx(1,0)', '-']]
+#--------------------------------------------------------------------------------
+#Top Chromosome for Optimiser_noisy:
+#[['z(0)', 'w'], ['h(0)', 'w'], ['-', 'cz(0,1)'], ['-', 'ryy(0,1,0.7845371797807829)'], ['w', 'h(1)'], ['cx(1,0)', '-'], ['sdg(0)', 'w'], ['t(0)', 'w'], ['swap(1,0)', '-']]
+#--------------------------------------------------------------------------------
+#Top Chromosome for Optimiser_noisy_depth_reduction:
+#[['-', 'rx(1,1.5753135223415262)'], ['cx(1,0)', '-'], ['-', 'h(1)'], ['rz(0,0.7939144640117518)', 'rx(1,0.7616351676962666)'], ['cz(1,0)', '-']]
