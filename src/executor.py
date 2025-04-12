@@ -10,19 +10,19 @@ from qiskit.quantum_info import Statevector
 # ================================
 # Simulator Selection
 # ================================
-#import optimiser_simple as optimiser #10|2
-#import optimiser_depth_reduction as optimiser #10|1
-#import optimiser_noisy as optimiser #10|3
-import optimiser_noisy_depth_reduction as optimiser #10|0
+#import optimiser_simple as optimiser #10|10
+import optimiser_depth_reduction as optimiser #10|2
+#import optimiser_noisy as optimiser #10|10
+#import optimiser_noisy_depth_reduction as optimiser #10|10
 
 # ================================
 # Global Execution Parameters
 # ================================
-qubits = 2
+qubits = 3
 
 BASELINE_ITERATIONS = 2000
 N_RANDOM_RUNS = 2
-RANDOM_BASELINE_DIR = "Experiment Results/Random_Baseline"
+RANDOM_BASELINE_DIR = "Experiment Results/Random_Baseline"  
 RANDOM_BASELINE_FILE = os.path.join(RANDOM_BASELINE_DIR, "random_baseline_" + str(qubits) + "_qubit_simple.csv")
 
 # ================================

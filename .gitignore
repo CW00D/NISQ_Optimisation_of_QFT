@@ -15,9 +15,6 @@ env/
 .DS_Store
 Thumbs.db
 
-# Logs
-Experiment Results/*
-
 # Experiment data and outputs
 experiments/data/
 experiments/analysis/results/

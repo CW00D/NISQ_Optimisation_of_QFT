@@ -124,7 +124,7 @@ print("Set up the unseen simulator using the ibm_brisbane noise model.")
 # -----------------------------
 
 # Directories to process
-num_qubits = 2  # Adjust as needed
+num_qubits = 3  # Adjust as needed
 directories = [
     r"Experiment Results\\Optimiser_simple\\" + str(num_qubits) + " Qubit Simulation\Data",
     r"Experiment Results\\Optimiser_depth_reduction\\" + str(num_qubits) + " Qubit Simulation\Data",
