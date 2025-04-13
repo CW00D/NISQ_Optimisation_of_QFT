@@ -11,7 +11,7 @@ from qiskit.quantum_info import Statevector
 # Simulator Selection
 # ================================
 #import optimiser_simple as optimiser #10|10
-import optimiser_depth_reduction as optimiser #10|2
+import optimiser_depth_reduction as optimiser #10|6->10
 #import optimiser_noisy as optimiser #10|10
 #import optimiser_noisy_depth_reduction as optimiser #10|10
 
