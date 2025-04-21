@@ -85,7 +85,7 @@ def evaluate_noisy_fitness_multiple_times(circuit, simulator, num_qubits, target
 num_qubits = 2
 directories = [
     #f"Experiment Results/Optimiser_simple/{num_qubits} Qubit Simulation/Data",
-    f"Experiment Results/Optimiser_depth_reduction/{num_qubits} Qubit Simulation/Data",
+    #f"Experiment Results/Optimiser_depth_reduction/{num_qubits} Qubit Simulation/Data",
     f"Experiment Results/Optimiser_noisy/{num_qubits} Qubit Simulation/Data",
     f"Experiment Results/Optimiser_noisy_depth_reduction/{num_qubits} Qubit Simulation/Data"
 ]

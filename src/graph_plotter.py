@@ -72,7 +72,7 @@ def plot_averaged_results(simulator_type, simulation_name, output_dir):
     print(f"Plot saved to {os.path.join(output_dir, f'{simulation_name} Fitness Chart.png')}")
 
 if __name__ == "__main__":
-    simulation_name = "2 Qubit Simulation"  # Specify the simulation name
+    simulation_name = "3 Qubit Simulation"  # Specify the simulation name
     
     simulator_type = "simple"
     #simulator_type = "depth_reduction"
