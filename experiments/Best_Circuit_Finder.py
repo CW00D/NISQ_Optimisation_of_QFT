@@ -82,7 +82,7 @@ def evaluate_noisy_fitness_multiple_times(circuit, simulator, num_qubits, target
     return np.mean([evaluate_circuit_fitness(circuit, simulator, num_qubits, target_states) for _ in range(reps)])
 
 # Data directories
-num_qubits = 2
+num_qubits = 3
 directories = [
     f"Experiment Results/Optimiser_simple/{num_qubits} Qubit Simulation/Data",
     f"Experiment Results/Optimiser_depth_reduction/{num_qubits} Qubit Simulation/Data",
@@ -106,12 +106,18 @@ for directory in directories:
         ideal_fid = [evaluate_circuit_fitness(c, noiseless_simulator, n_qubits, targets) for c in circuits]
         avg_drop = np.mean([(i - n) / i * 100 for i, n in zip(ideal_fid, noisy_fid)])
 
+        best_index = np.argmax(noisy_fid)
+        best_chromosome = chromosomes[best_index]
+        best_fidelity = noisy_fid[best_index]
+
         results_list.append({
             "Optimiser Type": sim_type,
             "Run": file.split('_')[0],
             "Ideal Fidelity": np.mean(ideal_fid),
             "Noisy Fidelity": np.mean(noisy_fid),
-            "Fidelity Drop (%)": avg_drop
+            "Fidelity Drop (%)": avg_drop,
+            "Best Chromosome (Noisy)": best_chromosome,
+            "Best Noisy Fidelity": best_fidelity
         })
 
 # Add textbook QFT baseline
@@ -126,9 +132,12 @@ results_list.insert(0, {
     "Run": "N/A",
     "Ideal Fidelity": ideal_qft,
     "Noisy Fidelity": noisy_qft,
-    "Fidelity Drop (%)": drop_qft
+    "Fidelity Drop (%)": drop_qft,
+    "Best Chromosome (Noisy)": None,
+    "Best Noisy Fidelity": noisy_qft
 })
 
+# Final dataframe
 results_df = pd.DataFrame(results_list)
 
 # Order optimisers
@@ -138,23 +147,12 @@ ordered_types = [
 ]
 results_df["Optimiser Type"] = pd.Categorical(results_df["Optimiser Type"], categories=ordered_types, ordered=True)
 
-# Compute final table
-final_summary = []
-for opt in ordered_types:
-    group = results_df[results_df["Optimiser Type"] == opt]
-    if not group.empty:
-        avg_ideal = group["Ideal Fidelity"].mean()
-        avg_noisy = group["Noisy Fidelity"].mean()
-        perc_84 = np.percentile(group["Noisy Fidelity"], 84)
-        drop = ((avg_ideal - avg_noisy) / avg_ideal) * 100
+# Summary of best chromosomes under noisy conditions
+best_chromosomes_per_optimiser = (
+    results_df.sort_values("Best Noisy Fidelity", ascending=False)
+    .drop_duplicates("Optimiser Type")
+    [["Optimiser Type", "Best Chromosome (Noisy)", "Best Noisy Fidelity"]]
+)
 
-        final_summary.append({
-            "Optimiser Type": opt,
-            "Avg Ideal Fidelity": round(avg_ideal, 6),
-            "Avg Noisy Fidelity": round(avg_noisy, 6),
-            "% Drop in Avg Fidelity": round(drop, 6),
-            "84th Percentile Fidelity": round(perc_84, 6)
-        })
-
-final_summary_df = pd.DataFrame(final_summary)
-print(final_summary_df.to_string(index=False))
+print("\nBest Chromosomes Under Noisy Conditions:\n")
+print(best_chromosomes_per_optimiser.to_string(index=False))
