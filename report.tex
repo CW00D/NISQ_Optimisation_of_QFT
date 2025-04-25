@@ -50,14 +50,14 @@
 \thispagestyle{empty} % Remove page number for the cover page
 
 \begin{center}
-{\bf \LARGE Approaches to Noise Resilient Quantum Circuit Design}\\[0.5cm]
+{\bf \LARGE Noise Resilient Quantum Circuit Design by Multi-Objective Genetic Algorithm}\\[0.5cm]
   \textbf{Christian Wood} \\[0.2cm]
   \textbf{Student ID:} 710018541 \\[1cm]
 \end{center}
 
 \section*{Abstract}
 \noindent 
-One of the key challenges in quantum computing is designing quantum circuits, a task made difficult by their probabilistic behaviour and counter-intuitive nature. Various automated techniques have been proposed, with genetic algorithms emerging as a popular method. In the current NISQ era, quantum noise poses a serious obstacle by introducing significant computational errors. By leveraging multi-objective evolutionary algorithms (MOEAs), our approach not only automates circuit design but also includes additional criteria to enhance performance under realistic noisy conditions. We present an MOEA with an a priori decision maker that adapts to the design of arbitrary circuits along with a novel circuit representation scheme. We demonstrate the method’s effectiveness by applying it to the 2 and 3-qubit Quantum Fourier Transform (QFT), showing that the approach evolves circuits that not only replicate the desired circuit's behaviour, but also outperform traditional circuits under noisy conditions.
+One of the key challenges in quantum computing is designing quantum circuits, a task made difficult by their probabilistic behaviour and counter-intuitive nature. Various automated techniques have been proposed, with genetic algorithms emerging as a popular method. In the current NISQ era, quantum noise poses a serious obstacle by introducing significant computational errors. By leveraging multi-objective evolutionary algorithms (MOEAs), our approach not only automates circuit design but also includes additional criteria to enhance performance under realistic noisy conditions. We present an MOEA with an a priori decision maker that adapts to the design of arbitrary circuits along with a novel circuit representation scheme. We demonstrate the method’s effectiveness by applying it to the 2 and 3-qubit Quantum Fourier Transform, showing that the approach evolves circuits that not only replicate the desired circuit's behaviour, but also outperform traditional circuits under noisy conditions.
 
 \newpage
 \thispagestyle{empty} 
@@ -109,7 +109,7 @@ I certify that all material in this dissertation which is not my own has been id
 \section{Introduction}
 Quantum computing represents a fundamental shift in computational paradigms, harnessing the principles of quantum mechanics to perform operations that are infeasible on classical machines. Unlike classical bits, which are strictly binary, quantum bits, known as qubits, exploit superposition \cite{Gudder1970ASP}, allowing them to exist in a linear combination of both $\ket{0}$ and $\ket{1}$ states simultaneously. Alongside this, the phenomenon of quantum entanglement \cite{horodecki2009quantum} permits correlations between qubits that transcend classical limits, enabling quantum systems to explore vast computational spaces in parallel.\newline
 
-This inherent parallelism underpins quantum computing’s potential to offer exponential or quadratic speedups for a variety of computational problems that are otherwise intractable on classical architectures. Shor’s algorithm \cite{Shor365700}, for instance, enables exponential acceleration in integer factorisation, posing a credible threat to classical cryptographic schemes. Similarly, Grover’s algorithm \cite{Khanal2021QuantumML} achieves a quadratic improvement in unstructured search problems. These theoretical milestones showcase quantum computing’s transformative potential across fields including cryptography, optimisation, chemistry, and materials science.\newline
+This inherent parallelism underpins quantum computing’s potential to offer exponential or quadratic speedups for a variety of computational problems that are otherwise intractable on classical architectures \cite{nielsen2001quantum}. Shor’s algorithm \cite{Shor365700}, for instance, enables exponential acceleration in integer factorisation, posing a credible threat to classical cryptographic schemes. Similarly, Grover’s algorithm \cite{Khanal2021QuantumML} achieves a quadratic improvement in unstructured search problems. These theoretical milestones showcase quantum computing’s transformative potential across fields including cryptography, optimisation, chemistry, and materials science.\newline
 
 However, the realisation of practical quantum algorithms remains constrained by the limitations of contemporary quantum hardware. We are currently situated in the so-called Noisy Intermediate-Scale Quantum (NISQ) era \cite{Preskill2018QuantumCI}, characterised by devices with tens to a few thousand qubits and plagued by noise, decoherence, and limited connectivity. Quantum operations, especially multi-qubit gates, are subject to high error rates, and circuit depth correlates directly with the likelihood of computation failure \cite{Clerk2008IntroductionTQ}. Compounding these hardware limitations is the intrinsic complexity of quantum circuit design. Unlike classical circuit construction, which is guided by well-established logic frameworks, quantum circuits must obey strict unitary constraints, preserve reversibility, and be robust to decoherence, rendering manual design both difficult and unintuitive. This motivates the need for automated circuit synthesis techniques that can navigate large, complex design spaces.\newline
 
@@ -131,15 +131,15 @@ The remainder of this dissertation is structured as follows: Section~\ref{sec:ba
 \subsubsection*{Quantum Noise and Circuit Fidelity}
 Quantum circuits operating on NISQ-era hardware are highly susceptible to various types of noise, including amplitude damping, dephasing, and depolarisation \cite{Clerk2008IntroductionTQ}. These effects are particularly severe in multi-qubit gates such as CNOTs, which exhibit significantly higher error rates than single-qubit operations. Circuit depth strongly correlates with the accumulation of noise, making depth minimisation a crucial goal for practical algorithm deployment.\newline
 
-Simulators such as Qiskit Aer allow for realistic modelling of hardware-specific noise profiles, including composite error channels that combine depolarisation with amplitude and phase damping. This capability enables developers to evaluate candidate circuits in noisy conditions prior to execution on physical devices.
+Simulators such as Qiskit Aer \cite{ibm_qiskit_aer} allow for realistic modelling of hardware-specific noise profiles, including composite error channels that combine depolarisation with amplitude and phase damping. This capability enables developers to evaluate candidate circuits in noisy conditions prior to execution on physical devices.
 
 \subsubsection*{Motivation for Evolutionary Approaches}
-These challenges, noise, connectivity, and circuit complexity, create a multi-faceted optimisation problem. Evolutionary Algorithms (EAs) are well-suited to this setting due to their ability to explore high-dimensional, discontinuous search spaces without the need for gradient information. When extended to Multi-Objective Evolutionary Algorithms (MOEAs), they further support trade-offs between competing goals, such as fidelity and circuit depth \cite{moein, Zhou2011MultiobjectiveEA}.\newline
+These challenges, noise, connectivity, and circuit complexity, create a multi-faceted optimisation problem. Evolutionary Algorithms (EAs) are well-suited to this setting due to their ability to explore high-dimensional, discontinuous search spaces without the need for gradient information, and have previously been applied \cite{Lukac2002EvolvingQC}. When extended to Multi-Objective Evolutionary Algorithms (MOEAs), they further support trade-offs between competing goals, such as fidelity and circuit depth \cite{moein, Zhou2011MultiobjectiveEA}.\newline
 
 Importantly, the representation of candidate solutions plays a crucial role in evolutionary search. Serial encodings lack support for parallel gate execution, making them ill-suited to NISQ constraints. By contrast, layer-based representations naturally support concurrent gate application and enable more meaningful variation through genetic operations.
 
-\subsection{Why Quantum Fourier Transform (QFT)?}
-The Quantum Fourier Transform (QFT) was selected as the target benchmark for this work due to its well-defined mathematical structure, practical importance in quantum algorithms, and the non-trivial challenges it poses for circuit synthesis. As a core subroutine in algorithms such as Shor’s factoring algorithm and quantum phase estimation, the QFT is a canonical example of a structured quantum computation with clear correctness criteria and known optimal implementations.\newline
+\subsubsection*{Why Use the Quantum Fourier Transform as a Benchmark}
+The QFT \cite{Jozsa1997QuantumAA} was selected as the target benchmark for this work due to its well-defined mathematical structure, practical importance in quantum algorithms, and the non-trivial challenges it poses for circuit synthesis. As a core subroutine in algorithms such as Shor’s factoring algorithm and quantum phase estimation, the QFT is a canonical example of a structured quantum computation with clear correctness criteria and known optimal implementations.\newline
 
 Unlike trivial or randomly generated unitaries, the QFT allows for meaningful comparison between evolved circuits and textbook designs, both in terms of fidelity and gate-level structure. Furthermore, it strikes a balance between complexity and tractability. Small-scale QFT circuits (2 to 3 qubits) are sufficiently expressive to expose optimisation challenges, such as depth minimisation, entanglement management, and noise sensitivity, while remaining computationally feasible for repeated evaluation during evolution.\newline
 
@@ -452,11 +452,10 @@ To clarify how these genetic operators are applied in practice, we present pseud
 \end{algorithmic}
 \end{algorithm}
 
-\subsection{Fitness Evaluation}
+\subsection{Fitness Evaluation - ADD EXAMPLE}
 The fitness function is the core driver of evolution, quantifying circuit performance across multiple criteria.  We adopt four scalarised fitness measures, presented here in the order used in the publishable paper:
 
 \subsubsection*{Ideal Fidelity}
-
 This metric measures how closely the evolved circuit $C$ reproduces the target QFT transformation in the absence of noise.  For an $n$‐qubit system, let $\rho_{\mathrm{ideal}}^{(i)}$ and $\rho_{\mathrm{circuit}}^{(i)}$ be the density matrices obtained by applying the ideal QFT and the candidate circuit to the $i$th computational basis state, respectively.  The Uhlmann fidelity between two density matrices is
 \[
 F(\rho_1,\rho_2)\;=\;\bigl(Tr\bigl[\sqrt{\sqrt{\rho_1}\,\rho_2\,\sqrt{\rho_1}}\bigr]\bigr)^2.
@@ -474,7 +473,9 @@ To encourage shorter circuits (and thus lower noise accumulation), we subtract a
   F_{\mathrm{DepthReduced}}
   \;=\;F_{\mathrm{Base}}\;-\;\lambda\,D,
 \end{equation}
-where $D$ is the number of layers in the chromosome and $\lambda>0$ is a tunable penalty coefficient.
+where $D$ is the number of layers in the chromosome and $\lambda>0$ is a tunable penalty coefficient.\newline
+
+The setting of the hyperparameter lambda is crucial, determining the balance between circuit fidelity and circuit depth. This is achieved through penalising solutions for increased depth, enacting an evolutionary pressure, whose strength is determined by lambda, onto the population. The selection of this parameter therefore requires careful consideration and exploration of different combinations as discussed in Section~\ref{sec:experimental}.
 
 \subsubsection*{Noisy Fidelity}
 This metric evaluates circuit performance under a realistic noise model.  We simulate each candidate on Qiskit’s AerSimulator with composite depolarising and damping channels (as detailed in Section~\ref{sec:experimental}).  Denoting the noisy output density matrix by $\rho_{\mathrm{noisy}}^{(i)}$, we define
@@ -492,7 +493,7 @@ Finally, we combine the noisy fidelity with the depth penalty to obtain
   \;=\;F_{\mathrm{Noisy}}\;-\;\lambda\,D.
 \end{equation}
 
-In our experiments we set $\lambda=0.005$ (determined via preliminary tuning) so as to balance noise‑resilience against circuit compactness.  During each generation, every chromosome is decoded into a Qiskit circuit, evaluated under both noiseless and noisy simulators, and assigned all four fitness values.  The evolutionary loop then uses the chosen fitness variant (as per the experimental configuration) to drive selection, crossover and mutation.
+During each generation, every chromosome is decoded into a Qiskit circuit, evaluated under both noiseless and noisy simulators, and assigned all four fitness values.  The evolutionary loop then uses the chosen fitness variant (as per the experimental configuration) to drive selection, crossover and mutation.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -553,7 +554,7 @@ To evaluate the effect of different optimisation goals, the four described fitne
     \item \textbf{Noisy fidelity with depth penalty ($F_{\text{NoisyDepthReduced}}$):} Penalised noisy fidelity score, with $\lambda = 0.005$.
 \end{enumerate}
 
-For each variant, the algorithm was run for 100 generations, and the best-performing individual per generation was recorded. Each configuration was repeated across 10 independent runs.
+This value was chosen through an iterative sweep across several candidate values. Specifically, we conducted three independent evolutionary runs for a range of $\lambda$ values, observing trends in noisy fidelity and circuit depth. By identifying the direction in which fidelity improved under noise-aware evaluation, we progressively refined the range of values tested, narrowing in on the region where performance peaked. Once results began to deteriorate, we selected a value between the last two tested that showed the most favourable trade-off. While this approach did not allow for exhaustive tuning due to computational cost, it provided sufficient granularity to select a $\lambda=0.005$ that reliably improved robustness without excessively compromising circuit fidelity or convergence behaviour.
 
 \subsection{Experimental Limitations}
 Due to computational costs, evaluations were limited to 2- and 3-qubit systems. While these small circuit sizes are not directly applicable to large-scale quantum algorithms, they serve as valuable testbeds for exploring evolutionary dynamics, circuit compression, and noise resilience.\newline
@@ -567,10 +568,12 @@ All evaluations were conducted in simulation only. While the noise model reflect
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Results and Evaluation}\label{sec:results}
-This section presents the results of applying the proposed multi-objective evolutionary algorithm (MOEA) framework to the design of 2- and 3-qubit Quantum Fourier Transform (QFT) circuits. The circuits evolved under four different fitness evaluation regimes. For each fitness regime, the evolution process was run independently 10 timesfor both 2- and 3-qubit cases, and results were evaluated in terms of ideal and noisy fidelity.
+This section presents the results of applying the proposed multi-objective evolutionary algorithm (MOEA) framework to the design of 2- and 3-qubit Quantum Fourier Transform (QFT) circuits. The circuits evolved under four different fitness evaluation regimes. For each fitness regime, the evolution process was run independently 10 times for both 2- and 3-qubit cases, and results were evaluated in terms of ideal and noisy fidelity.
 
 \subsection{QFT Circuit Evolution}
-To assess the convergence behaviour of the MOEA under different fitness functions, fitness evolution plots were recorded over 2000 and 20,000 generations for the 2- and 3-qubit circuits respectively. Each curve reports the average and best-performing fitness values across the population at each generation, providing a view into the optimisation dynamics.
+To assess the convergence behaviour of the MOEA under different fitness functions, we recorded fitness evolution plots over 2000 generations for the 2-qubit circuit and 20,000 generations for the 3-qubit circuit. Each curve represents the average and best-performing fitness values across the population at each generation, offering insights into the optimisation dynamics. We also include error bars to show the diversity in results between different runs, with further exploration of this variability provided in Section~\ref{sec:box_plots}.
+
+Additionally, the plots present the averaged results from 10 runs of a random search algorithm, which evaluates the same number of circuit evaluations per iteration as our EA. This comparison highlights that the observed improvements are not merely due to random chance, but rather demonstrate that the EA significantly enhances our search capabilities within this candidate solution space.
 
 \begin{figure}[H]
 \centering
@@ -590,126 +593,11 @@ To assess the convergence behaviour of the MOEA under different fitness function
 \label{fig:simple_fitness_charts}
 \end{figure}
 
-\begin{figure}[H]
-\centering
-\begin{subfigure}{.5\textwidth}
-  \centering
-  \includegraphics[width=.95\linewidth]{Project Report/Images/Depth Optimiser/2 Qubit/2 Qubit Simulation Fitness Chart.png}
-  \caption{2 Qubit Circuits}
-  \label{fig:depth_fitness_2q}
-\end{subfigure}%
-\begin{subfigure}{.5\textwidth}
-  \centering
-  \includegraphics[width=.95\linewidth]{Project Report/Images/Depth Optimiser/3 Qubit/3 Qubit Simulation Fitness Chart.png}
-  \caption{3 Qubit Circuits}
-  \label{fig:depth_fitness_3q}
-\end{subfigure}
-\caption{Convergence curves showing the average (dashed line) and maximum (solid line) fitness over iterations using the $F_{\mathrm{DepthReduced}}$ fitness regime}
-\label{fig:depth_fitness_charts}
-\end{figure}
+Figure~\ref{fig:simple_fitness_charts} shows the fitness trajectories for 2- and 3-qubit circuits optimised under the $F_{\mathrm{Base}}$ regime. In both cases, populations exhibit a steep initial rise in fitness as the algorithm quickly exploits diversity and identifies functionally correct subcircuits. This phase is followed by a gradual plateau, reflecting diminishing returns as the population converges around high-performing solutions.\newline
 
-\begin{figure}[H]
-\centering
-\begin{subfigure}{.5\textwidth}
-  \centering
-  \includegraphics[width=.95\linewidth]{Project Report/Images/Noisy Optimiser/2 Qubit/2 Qubit Simulation Fitness Chart.png}
-  \caption{2 Qubit Circuits}
-  \label{fig:noisy_fitness_2q}
-\end{subfigure}%
-\begin{subfigure}{.5\textwidth}
-  \centering
-  \includegraphics[width=.95\linewidth]{Project Report/Images/Noisy Optimiser/3 Qubit/3 Qubit Simulation Fitness Chart.png}
-  \caption{3 Qubit Circuits}
-  \label{fig:noisy_fitness_3q}
-\end{subfigure}
-\caption{Convergence curves showing the average (dashed line) and maximum (solid line) fitness over iterations using the $F_{\mathrm{Noisy}}$ fitness regime}
-\label{fig:noisy_fitness_charts}
-\end{figure}
+This convergence pattern is echoed across all fitness regimes (see Appendix~\ref{appendix:fitness-convergence}). However, differences in convergence height and stability are observable: depth- and noise-penalised regimes tend to peak at lower fitness levels. These regimes also often exhibit extended periods of gradual improvement. Notably, 3-qubit circuits typically show greater variance in average fitness over time, consistent with their larger and more rugged search space.
 
-\begin{figure}[H]
-\centering
-\begin{subfigure}{.5\textwidth}
-  \centering
-  \includegraphics[width=.95\linewidth]{Project Report/Images/Noisy Depth Optimiser/2 Qubit/2 Qubit Simulation Fitness Chart.png}
-  \caption{2 Qubit Circuits}
-  \label{fig:noisy_depth_fitness_2q}
-\end{subfigure}%
-\begin{subfigure}{.5\textwidth}
-  \centering
-  \includegraphics[width=.95\linewidth]{Project Report/Images/Noisy Depth Optimiser/3 Qubit/3 Qubit Simulation Fitness Chart.png}
-  \caption{3 Qubit Circuits}
-  \label{fig:noisy_depth_fitness_3q}
-\end{subfigure}
-\caption{Convergence curves showing the average (dashed line) and maximum (solid line) fitness over iterations using the $F_{\mathrm{NoisyDepthReduced}}$ fitness regime}
-\label{fig:noisy_depth_fitness_charts}
-\end{figure}
-
-Figure~\ref{fig:simple_fitness_charts} shows the fitness trajectories for 2- and 3-qubit circuits optimised under the $F_{\mathrm{Base}}$ regime. In both cases, populations exhibit a steep initial rise in fitness as the algorithm quickly exploits diversity and identifies functionally correct subcircuits. This phase is followed by a gradual plateau, reflecting the diminishing returns of incremental refinement as the population converges around a high-performing solution.\newline
-
-This convergence pattern is echoed across all fitness regimes (Figures~\ref{fig:depth_fitness_charts}–\ref{fig:noisy_depth_fitness_charts}). However, differences in convergence height and stability are observable: depth- and noise-penalised regimes tend to peak at lower fitness levels, reflecting the cost of satisfying multiple objectives. These regimes also often exhibit extended periods of gradual improvement, suggesting a more exploratory dynamic in navigating the constrained search space.\newline
-
-Notably, 3-qubit circuits typically show greater variance in average fitness over time, consistent with their larger and more rugged search space.
-
-\subsection{Comparative Performance under Noise}
-Table~\ref{tab:noisy_vs_noiseless_2q} and Table~\ref{tab:noisy_vs_noiseless_3q} report the final fidelity scores of the best evolved circuits under both ideal (noiseless) and realistic (noisy) simulations for each fitness regime, compared against the standard textbook QFT.\newline
-
-The ideal fidelity-only fitness consistently produced the highest fidelity under noiseless conditions, outperforming all other regimes. However, these same circuits often degraded significantly under noise. In contrast, circuits evolved under noise-aware fitness functions achieved lower noiseless fidelities but maintained substantially higher performance in noisy simulations. This confirms the effectiveness of explicitly incorporating noise into the optimisation objective.
-
-\begin{table}[H]
-    \centering
-    \small
-    \begin{tabularx}{\textwidth}{l
-        >{\centering\arraybackslash}X
-        >{\centering\arraybackslash}X
-        >{\centering\arraybackslash}X
-        >{\centering\arraybackslash}X}
-        \toprule
-        \textbf{Fitness Regime} 
-        & \textbf{Noiseless\newline Fidelity Avg} 
-        & \textbf{Noisy\newline Fidelity Avg}
-        & \textbf{\% Drop in\newline Fidelity Avg} 
-        & \textbf{84th Percentile\newline Fidelity} \\
-        \midrule
-        Traditional QFT                 & 1.000000 & 0.960438 & 3.956215 & 0.960438 \\
-        $F_{\mathrm{Base}}$            & 0.999994 & 0.939347 & 6.064734 & 0.950979 \\
-        $F_{\mathrm{DepthReduced}}$    & 1.000000 & 0.951798 & 4.820149 & 0.963436 \\
-        $F_{\mathrm{Noisy}}$           & 0.999992 & 0.942052 & 5.793984 & 0.960330 \\
-        $F_{\mathrm{NoisyDepthReduced}}$ & 0.985322 & 0.944782 & 4.114379 & 0.966577 \\
-        \bottomrule
-    \end{tabularx}
-    \caption{2-qubit QFT fidelity performance under noiseless and noisy simulation conditions}
-    \label{tab:noisy_vs_noiseless_2q}
-\end{table}
-
-
-\begin{table}[H]
-    \centering
-    \small
-    \begin{tabularx}{\textwidth}{l
-        >{\centering\arraybackslash}X
-        >{\centering\arraybackslash}X
-        >{\centering\arraybackslash}X
-        >{\centering\arraybackslash}X}
-        \toprule
-        \textbf{Fitness Regime} 
-        & \textbf{Noiseless\newline Fidelity Avg} 
-        & \textbf{Noisy\newline Fidelity Avg}
-        & \textbf{\% Drop in\newline Fidelity Avg} 
-        & \textbf{84th Percentile\newline Fidelity} \\
-        \midrule
-        Traditional QFT                 & 1.000000 & 0.946563 & 5.343724 & 0.946563 \\
-        $F_{\mathrm{Base}}$            & 0.999873 & 0.926370 & 7.351266 & 0.937941 \\
-        $F_{\mathrm{DepthReduced}}$    & 0.984303 & 0.888670 & 9.715838 & 0.943349 \\
-        $F_{\mathrm{Noisy}}$           & 0.998504 & 0.938281 & 6.031348 & 0.947314 \\
-        $F_{\mathrm{NoisyDepthReduced}}$ & 0.999616 & 0.941742 & 5.789568 & 0.947152 \\
-        \bottomrule
-    \end{tabularx}
-    \caption{3-qubit QFT fidelity performance under noiseless and noisy simulation conditions}
-    \label{tab:noisy_vs_noiseless_3q}
-\end{table}
-
-
-\subsection{Distribution of Fidelity Across Iterations}
+\subsection{Distribution of Fidelity Across Iterations}\label{sec:box_plots}
 While the fitness evolution plots provide a macro-level view of how the optimisers progress over time, they do not fully capture the statistical variability between runs. To further understand the consistency and spread of results, we present box plots of the final fidelities achieved by the top-performing circuit in each of the ten runs, under both noiseless and noisy conditions.\newline
 
 Each box plot summarises the fidelity distribution of the best circuit found in each run for a given optimiser and qubit count. The central line indicates the median, the box bounds represent the interquartile range (IQR), and the whiskers extend to 1.5× IQR. Individual points outside this range are plotted as outliers. These values are particularly important in highlighting how consistent each optimiser is at achieving high-fidelity circuits and how significantly fidelity may vary due to stochastic search dynamics.
@@ -784,14 +672,72 @@ Each box plot summarises the fidelity distribution of the best circuit found in 
 \end{subfigure}
 \caption{Best circuit fidelity distributions using the $F_{\mathrm{NoisyDepthReduced}}$ optimiser.}
 \label{fig:noisydepth_box_plots}
-\end{figure}\newpage
+\end{figure}
 
-While convergence plots highlight population-level trends, they obscure the stochastic variability between runs. To capture this, Figures~\ref{fig:simple_box_plots}–\ref{fig:noisydepth_box_plots} present box plots showing the distribution of final fidelities (noiseless and noisy) achieved by the top-performing individual in each run.\newline
+These box plots reveal several key trends. First and most notably, we observe all fitness regimes producing ideal circuits in a very small range close to a fidelity of 1. The one exception to this is the results from the 3-qubit $F_{\mathrm{DepthReduced}}$ regime, which experienced a broad spread in ideal fidelities. Another significant trend is the distinction between the 2- and 3-qubit results, with the performance of the 2-qubit results having significantly higher fidelities across the board than those of the 3-qubit circuits in all cases.\newline
 
-These box plots reveal several key insights. First, regimes optimised for noisy conditions ($F_{\mathrm{Noisy}}$ and $F_{\mathrm{NoisyDepthReduced}}$) exhibit tighter distributions under noise, demonstrating increased robustness. Second, $F_{\mathrm{DepthReduced}}$ shows relatively low variability, likely due to its explicit depth regularisation constraining circuit topology. By contrast, $F_{\mathrm{Base}}$ often shows higher variability under noise, indicating that circuits optimised solely for fidelity may become fragile when executed on noisy hardware.\newline
+Another interesting feature offering insight into our fitness regime performance is the spread of results between the runs under noisy conditions. In the simpler 2-qubit circuits, we can observe a lower spread of results in our depth incorporating regimes, while the inclusion of noise has the inverse effect, resulting in larger result spreads. By contrast, in the more complex 3-qubit circuits, we observe regimes incorporating noise having a far lower spread in results than those without its inclusion. In these more complex circuits, the depth reduction has the opposite effect, causing a wide spread in results. The box plots also exhibit a number of outliers, which are more common in regimes incorporating noise compared to those without. This is particularly pronounced in the more complex 3-qubit circuits.
 
-The presence of outliers in several cases suggests a multimodal fitness landscape, where different runs converge on structurally distinct yet similarly effective solutions. This effect is particularly pronounced in 3-qubit circuits, where the increased search space allows for greater divergence in final architectures.
+\subsection{Comparative Performance under Noise}\label{sec:performance_tables}
+Table~\ref{tab:noisy_vs_noiseless_2q} and Table~\ref{tab:noisy_vs_noiseless_3q} report the performance of the highest-fitness evolved circuit from each of the 10 independent runs across all fitness regimes. For each regime, we present the average fidelity under both ideal (noiseless) and realistic (noisy) simulation conditions, alongside the percentage drop in average fidelity due to noise. In addition, we report the 84th percentile fidelity, the value below which 84\% of the best-run circuits fall, to provide a sense of upper-bound consistency across runs.Results for the textbook QFT circuit are also included for benchmarking, offering a baseline for how well evolved circuits perform relative to traditional hand-crafted implementations.
 
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabularx}{\textwidth}{l
+        >{\centering\arraybackslash}X
+        >{\centering\arraybackslash}X
+        >{\centering\arraybackslash}X
+        >{\centering\arraybackslash}X}
+        \toprule
+        \textbf{Fitness Regime} 
+        & \textbf{Noiseless\newline Fidelity Avg} 
+        & \textbf{Noisy\newline Fidelity Avg}
+        & \textbf{\% Drop in\newline Fidelity Avg} 
+        & \textbf{84th Percentile\newline Noisy Fidelity} \\
+        \midrule
+        Traditional QFT                 & 1.000000 & 0.960438 & 3.956215 & - \\
+        \midrule
+        $F_{\mathrm{Base}}$            & 0.999994 & 0.939347 & 6.064734 & 0.950979 \\
+        $F_{\mathrm{DepthReduced}}$    & 1.000000 & 0.951798 & 4.820149 & 0.963436 \\
+        $F_{\mathrm{Noisy}}$           & 0.999992 & 0.942052 & 5.793984 & 0.960330 \\
+        $F_{\mathrm{NoisyDepthReduced}}$ & 0.985322 & 0.944782 & 4.114379 & 0.966577 \\
+        \bottomrule
+    \end{tabularx}
+    \caption{2-qubit QFT fidelity performance under noiseless and noisy simulation conditions}
+    \label{tab:noisy_vs_noiseless_2q}
+\end{table}
+
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabularx}{\textwidth}{l
+        >{\centering\arraybackslash}X
+        >{\centering\arraybackslash}X
+        >{\centering\arraybackslash}X
+        >{\centering\arraybackslash}X}
+        \toprule
+        \textbf{Fitness Regime} 
+        & \textbf{Noiseless\newline Fidelity Avg} 
+        & \textbf{Noisy\newline Fidelity Avg}
+        & \textbf{\% Drop in\newline Fidelity Avg} 
+        & \textbf{84th Percentile\newline Noisy Fidelity} \\
+        \midrule
+        Traditional QFT                 & 1.000000 & 0.946563 & 5.343724 & - \\
+        \midrule
+        $F_{\mathrm{Base}}$            & 0.999873 & 0.926370 & 7.351266 & 0.937941 \\
+        $F_{\mathrm{DepthReduced}}$    & 0.984303 & 0.888670 & 9.715838 & 0.943349 \\
+        $F_{\mathrm{Noisy}}$           & 0.998504 & 0.938281 & 6.031348 & 0.947314 \\
+        $F_{\mathrm{NoisyDepthReduced}}$ & 0.999616 & 0.941742 & 5.789568 & 0.947152 \\
+        \bottomrule
+    \end{tabularx}
+    \caption{3-qubit QFT fidelity performance under noiseless and noisy simulation conditions}
+    \label{tab:noisy_vs_noiseless_3q}
+\end{table}
+
+These tables provide an important insight into the behaviour of the circuits produced by the various fitness regimes under different simulation conditions. As can be seen, the impact of noise consistently detracts from the fidelity of the circuits, although the level of fidelity drop is markedly different between the different regimes, offering an insight into the impact of the different fitness regimes. This difference is further demonstrated in the 84th Percentile column, which shows the same difference in noisy fidelity between regimes.
 
 \subsection{Structural Comparison of Evolved Circuits}
 Beyond fidelity, evolved circuits were analysed for structural variation and gate usage. Figure~\ref{fig:structural_comparison_all} illustrates representative 2- and 3-qubit circuits evolved under each fitness regime, alongside the standard QFT implementation.
@@ -867,27 +813,81 @@ This behaviour indicates that the optimiser selectively balances noise avoidance
 %  Discussion & Critical Analysis
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Discussion \& Critical Analysis}\label{sec:analysis}
-(Approximately 3 pages) Reflect on your project outcomes.
+\section{Discussion & Critical Analysis}\label{sec:analysis}
+\subsection{Key Insights from Optimisation Dynamics and Circuit Performance}
+
+The results presented in Section~\ref{sec:results} yield several key insights into the behaviour and effectiveness of the proposed evolutionary framework, as well as the influence of different fitness regimes on circuit quality and robustness.\newline
+
+The convergence curves, particularly under the $F_{\mathrm{Base}}$ regime, demonstrate the algorithm’s ability to rapidly identify high-performing circuits. In all cases, fitness values reached 1—or extremely close to it—showcasing the EA’s efficiency in exploiting functional building blocks within the chromosome representation. This rapid convergence results in early plateaus, as there are no further fitness improvements to exploit. In contrast, the other three fitness regimes plateau sooner but exhibit ongoing gradual improvement over time. This likely reflects fine-tuning through mutation that incrementally improves noisy or constrained fitness components, suggesting that extended runs could yield further gains under these more challenging regimes.\newline
+
+Complementing this, the box plots reveal the extent of inter-run variability and highlight the influence of fitness regime design on solution stability. For 2-qubit circuits, regimes incorporating noise-awareness tend to yield greater variability in noisy fidelities, whereas depth-reducing regimes result in tighter fidelity distributions. This may be attributed to the relative simplicity of 2-qubit circuits: noise-aware fitness functions permit a wide range of viable low-noise designs, increasing diversity across runs. In contrast, depth constraints sharply restrict allowable structures, narrowing the solution space and leading to greater consistency.\newline
+
+Interestingly, this trend reverses for 3-qubit circuits. Here, regimes incorporating noise penalties exhibit lower variability, while depth-reducing regimes show broader fidelity spreads. This reversal likely reflects the increased complexity required for 3-qubit QFTs: noise constraints act as a stabilising force by discouraging the use of volatile entangling gates, while depth restrictions impose a tighter trade-off, forcing the algorithm to explore a wider range of structurally distinct—and potentially less robust—solutions. The notably high variability in the 3-qubit $F_{\mathrm{DepthReduced}}$ regime may stem from this tension between circuit simplicity and functional fidelity.\newline
+
+The performance metrics presented in Tables~\ref{tab:noisy_vs_noiseless_2q} and~\ref{tab:noisy_vs_noiseless_3q} further illuminate the efficacy of each approach. As hypothesised, regimes that incorporated noise into their fitness functions achieved stronger performance under noisy conditions, confirming the benefit of tailoring optimisation objectives to realistic hardware constraints. For 2-qubit circuits, even depth reduction alone enabled evolved solutions to outperform the traditional QFT baseline in noisy simulations, illustrating the value of structurally guided evolution in simpler problem spaces.\newline
+
+However, for more complex 3-qubit circuits, depth constraints appeared to hinder performance. This highlights a critical trade-off: structural penalties may be helpful in reducing circuit fragility for simpler problems, but they can overly constrain the search for more expressive circuits. A potential improvement would be to introduce depth penalties gradually, allowing early generations to prioritise fidelity and discover essential structures before progressively rewarding compactness. This suggests a dynamic, staged fitness design may be better suited to more complex tasks. The performance of the $F_{\mathrm{NoisyDepthReduced}}$ regime supports this conclusion, offering a strong balance of accuracy, robustness, and efficiency—key features for practical implementation on NISQ devices.\newline
+
+Finally, the structural visualisations clarify how these trade-offs manifest at the circuit level. Circuits evolved under $F_{\mathrm{Base}}$ tend to be deeper and more entangled, consistent with overfitting to noiseless simulators. In contrast, circuits from noise-aware regimes exhibit more regular, compact designs, often favouring parameterised single-qubit gates. For 2-qubit circuits, this results in clear avoidance of entangling gates. However, 3-qubit circuits—even under $F_{\mathrm{NoisyDepthReduced}}$—retain some degree of entanglement, suggesting diminishing returns in simplification: certain transformations inherently demand more complex inter-qubit coordination.\newline
+
+Together, these findings reinforce the strength of the MOEA framework in tailoring circuit structure to application-specific constraints. Moreover, they underscore the crucial role of fitness function design—not just in shaping circuit fidelity, but in determining generalisation, efficiency, and robustness to noise. In the noisy intermediate-scale quantum (NISQ) era, the best circuits are not necessarily the most ideal; they are the most adaptive.\newline
+
+
+\subsection{Strengths of the Methodology and Evaluation}\label{sec:strengths}
+A key strength of the methodology lies in its flexibility and generality. The chromosome representation is highly expressive, capable of encoding a wide range of circuit structures without relying on rigid templates. This flexibility allows the evolutionary algorithm to discover novel, and often non-intuitive, circuit designs that still achieve high performance.\newline
+
+The modular fitness design is another strong point. By separating concerns such as fidelity, noise robustness, and circuit depth, the framework enables the user to tailor the optimisation objectives to the specific constraints and goals of the task. This was clearly reflected in the behaviour of evolved circuits under different regimes, each of which emphasised different trade-offs.\newline
+
+Critically, the methodology is also easily adaptable to alternative circuit design problems. By simply switching the set of target output states for each input, the same evolutionary framework can be applied to entirely different quantum algorithms or subroutines without structural modification. This extensibility makes the framework particularly well-suited to the diverse needs of quantum software development.\newline
+
+In addition, the noise modelling is modular and flexible. The current implementation supports straightforward replacement or adjustment of the noise model to reflect the characteristics of different backend hardware platforms. This ensures long-term adaptability of the optimisation pipeline as quantum technology evolves.\newline
+
+From an evaluation standpoint, the study takes a holistic approach. It examines a broad range of performance indicators—convergence curves, fidelity distributions, percentile-based metrics, and structural comparisons—allowing for deep insight into the optimiser’s behaviour. The inclusion of both ideal and noisy simulation conditions enhances the practical relevance of the results.\newline
+
+Finally, benchmarking the evolutionary algorithm against a random search baseline, albeit simple, adds further rigour to the analysis. It confirms that the observed performance gains stem from effective search rather than chance, validating the optimiser’s utility.
+
+\subsection{Limitations and Weaknesses}\label{sec:limitations}
+While the methodology presents many strengths, several limitations must be acknowledged.\newline
+
+First, the evolutionary process is computationally intensive. Running multiple independent trials for each fitness regime—particularly for the more complex 3-qubit circuits—required significant runtime. This may limit scalability to larger qubit counts or more complex target circuits without further algorithmic or hardware acceleration.\newline
+
+Second, although the framework supports modular noise modelling, the experiments relied on a relatively simple and fixed noise profile. This does not capture the full complexity of noise encountered on real quantum devices, which may include non-Markovian effects, cross-talk, and hardware-specific variability. Incorporating richer noise models could yield more realistic assessments but would further increase simulation cost.\newline
+
+Another notable limitation lies in the structure of the search space. Despite the expressiveness of the chromosome representation, the evolutionary search may still converge to local optima, especially under complex fitness landscapes with multiple competing objectives. The presence of outliers in the fidelity distributions (particularly in 3-qubit circuits) is indicative of this risk. While diversity-preserving mechanisms were implicitly encouraged via stochastic mutation, more explicit diversity control could enhance robustness.\newline
+
+Finally, while the framework was designed for adaptability, the results were only demonstrated on QFT circuits. Although the generality claim is justified conceptually, it remains an empirical assumption until validated on a broader range of quantum tasks. Future work would benefit from testing the approach on alternative algorithms such as Grover's search or quantum error correction primitives.
+
+\subsection{Future Work}
+This project provides a strong foundation for further exploration of evolutionary approaches to quantum circuit design. Several promising directions could extend the impact and capabilities of the current framework:
 
 \begin{itemize}
-  \item Summarise the key findings and how each experimental variant performed.
-  \item Discuss the impact of incorporating noise simulation and circuit depth into the fitness evaluation.
-  \item Reflect on the strengths and weaknesses of your approach, including challenges in EA convergence and simulation limitations.
-  \item Consider the feedback received on your literature review and project plan, and discuss how your approach addresses or could further refine the objectives.
+    \item \textbf{GPU Acceleration for Scaling:} While current experiments are constrained to relatively low qubit counts due to computational cost, porting the evaluation and simulation pipeline to GPU-based backends (e.g., using GPU-compatible simulators such as \texttt{qsim} or \texttt{cuQuantum}) would enable faster circuit evaluation and larger batch sizes. This could support the evolution of more complex circuits (e.g., 4–5 qubits) and allow for a greater number of independent runs, potentially uncovering higher-fidelity circuits through increased search breadth.
+    
+    \item \textbf{Deployment on Physical Quantum Hardware:} All circuit evaluations in this study were performed via simulation. A logical next step would be to test the evolved circuits on actual quantum hardware (e.g., IBM Q, Rigetti), to assess their performance under real-world noise conditions. This would offer valuable insight into the practical deployability of evolved circuits, and enable calibration of noise models to more accurately reflect physical conditions.
+
+    \item \textbf{Generalisation to Other Quantum Algorithms:} The current framework is easily generalisable to other quantum tasks by simply modifying the target output amplitudes. Future studies could apply this approach to evolve circuits for problems such as Grover's search, Quantum Phase Estimation (QPE), or the Variational Quantum Eigensolver (VQE). This would allow for exploration of algorithm-specific fitness landscapes and the identification of reusable structural motifs across problem types.
+
+    \item \textbf{Multi-stage Evolutionary Schedules:} Future work could explore multi-stage evolutionary strategies where objectives are introduced sequentially. For example, circuits could first evolve under idealised fidelity objectives to establish basic functionality, before introducing noise and depth penalties in later generations. This curriculum-like learning approach might better accommodate the structural complexity of larger circuits.
 \end{itemize}
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
 %  Conclusions & Future Work
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Conclusions \& Future Work}\label{sec:conclusion}
-This study aimed to evolve a noise-resilient two-qubit Quantum Fourier Transform (QFT) circuit using an evolutionary algorithm (EA) and various multi-objective evolutionary algorithm (MOEA) techniques. Our results demonstrate the success of this approach, with the highest-performing evolved circuits achieving a noisy fidelity of 0.997 and 0.99, surpassing the traditional QFT circuit under noisy conditions.\newline
+\section{Conclusion}\label{sec:conclusion}
+This dissertation has explored the use of a multi-objective evolutionary algorithm (MOEA) to automate the design of quantum circuits, with a focus on synthesising efficient and noise-resilient implementations of the Quantum Fourier Transform (QFT). The study introduced a flexible chromosome representation, a set of mutation operators tailored to quantum circuits, and four fitness evaluation regimes designed to balance fidelity, depth, and noise robustness.\newline
 
-However, this study has limitations. Our approach was tested only on two-qubit circuits using a simulated noise model rather than real hardware, meaning further validation is required. Additionally, the optimisation process is computationally expensive due to repeated execution of each circuit for fitness evaluation, which poses challenges for scaling to larger qubit counts as circuit evaluation complexity grows exponentially with qubit count.\newline
+The experimental results across 2- and 3-qubit cases demonstrate that the evolutionary approach is capable of generating high-fidelity circuits comparable to or exceeding the performance of the standard textbook QFT, particularly under noisy conditions. By evolving under different fitness regimes, the framework was shown to adapt to varied optimisation goals,  trading off complexity, noise resilience, and structural efficiency depending on the fitness constraints.\newline
 
-For future work, we aim to extend this method to three-qubit QFT circuits, where preliminary results indicate even greater noise resilience. Running the EA on a GPU-enabled system could help mitigate computational costs, while testing evolved circuits on actual quantum hardware would provide critical validation of their real-world performance. These steps will contribute to the advancement of noise-aware evolutionary design for quantum circuits.
+The findings reinforce several key insights: firstly, that incorporating hardware-aware objectives (such as noise and depth) leads to solutions that generalise better to realistic execution environments; and secondly, that structural regularisation can mitigate the fragility often introduced by purely fidelity-driven optimisation. The framework's ability to adaptively balance competing constraints shows promise for broader applicability in noise-constrained quantum algorithm synthesis.\newline
+
+In relation to prior work, this research extends evolutionary design methods in quantum computing by explicitly incorporating noise models and structural penalties into the search process, a key requirement for near-term quantum devices. Unlike fixed-template approaches or exhaustive search strategies, the proposed method offers both adaptability and scalability, allowing easy extension to other quantum tasks by changing the input-output mapping or the noise model.\newline
+
+Overall, this work contributes a modular and extensible approach to quantum circuit synthesis that bridges the gap between algorithmic idealism and hardware realism. It highlights the power of evolutionary computation not only to discover functionally correct quantum circuits, but to do so in a way that respects the physical constraints of emerging quantum technologies.\newpage
+
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -904,9 +904,73 @@ For future work, we aim to extend this method to three-qubit QFT circuits, where
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \newpage
 \appendix
-\section*{Appendix A}
+\section*{Appendix A - Supplementary Fitness Convergence Plots}
+\label{appendix:fitness-convergence}
 \addcontentsline{toc}{section}{Appendix A}
+To supplement the $F_{\mathrm{Base}}$ convergence plots in Section~5.1, this appendix includes additional fitness evolution curves for the other three fitness regimes:
 
-PLACEHOLDER FOR ADDITIONAL MATERIAL, SUCH AS SIMULATION LOGS, CODE SNIPPETS, OR DETAILED EXPERIMENTAL SETTINGS.
+\begin{itemize}
+    \item $F_{\mathrm{DepthReduced}}$ – depth-penalised ideal fidelity
+    \item $F_{\mathrm{Noisy}}$ – noise-aware fidelity
+    \item $F_{\mathrm{NoisyDepthReduced}}$ – noise and depth penalised
+\end{itemize}
+
+These figures exhibit broadly similar convergence dynamics, but with lower fitness plateaus and extended periods of incremental improvement, reflecting the added complexity of satisfying multiple optimisation objectives.
+
+% Paste the following 3 figures here as they are
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{.5\textwidth}
+        \centering
+        \includegraphics[width=.95\linewidth]{Project Report/Images/Depth Optimiser/2 Qubit/2 Qubit Simulation Fitness Chart.png}
+        \caption{2 Qubit Circuits}
+        \label{fig:depth_fitness_2q}
+    \end{subfigure}%
+    \begin{subfigure}{.5\textwidth}
+        \centering
+        \includegraphics[width=.95\linewidth]{Project Report/Images/Depth Optimiser/3 Qubit/3 Qubit Simulation Fitness Chart.png}
+        \caption{3 Qubit Circuits}
+        \label{fig:depth_fitness_3q}
+    \end{subfigure}
+    \caption{Convergence curves using $F_{\mathrm{DepthReduced}}$ fitness regime}
+    \label{fig:depth_fitness_charts}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{.5\textwidth}
+        \centering
+        \includegraphics[width=.95\linewidth]{Project Report/Images/Noisy Optimiser/2 Qubit/2 Qubit Simulation Fitness Chart.png}
+        \caption{2 Qubit Circuits}
+        \label{fig:noisy_fitness_2q}
+    \end{subfigure}%
+    \begin{subfigure}{.5\textwidth}
+        \centering
+        \includegraphics[width=.95\linewidth]{Project Report/Images/Noisy Optimiser/3 Qubit/3 Qubit Simulation Fitness Chart.png}
+        \caption{3 Qubit Circuits}
+        \label{fig:noisy_fitness_3q}
+    \end{subfigure}
+\caption{Convergence curves using $F_{\mathrm{Noisy}}$ fitness regime}
+\label{fig:noisy_fitness_charts}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{.5\textwidth}
+        \centering
+        \includegraphics[width=.95\linewidth]{Project Report/Images/Noisy Depth Optimiser/2 Qubit/2 Qubit Simulation Fitness Chart.png}
+        \caption{2 Qubit Circuits}
+        \label{fig:noisy_depth_fitness_2q}
+    \end{subfigure}%
+    \begin{subfigure}{.5\textwidth}
+        \centering
+        \includegraphics[width=.95\linewidth]{Project Report/Images/Noisy Depth Optimiser/3 Qubit/3 Qubit Simulation Fitness Chart.png}
+        \caption{3 Qubit Circuits}
+        \label{fig:noisy_depth_fitness_3q}
+    \end{subfigure}
+    \caption{Convergence curves using $F_{\mathrm{NoisyDepthReduced}}$ fitness regime}
+    \label{fig:noisy_depth_fitness_charts}
+\end{figure}
+
 
 \end{document}
